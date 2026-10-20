@@ -1,0 +1,12 @@
+# Local reference material
+/legacy/
+/simulator/
+/udacity_baseline/
+
+# Generated artifacts
+/build/
+/outputs/
+
+# Personal configuration
+/CMakeUserPresets.json
+/.vscode/

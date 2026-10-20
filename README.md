@@ -1,129 +1,256 @@
-# Extended Kalman Filter Project Starter Code
-Self-Driving Car Engineer Nanodegree Program
+# Extended Kalman Filter — C++
 
-In this project you will utilize a kalman filter to estimate the state of a moving object of interest with noisy lidar and radar measurements. Passing the project requires obtaining RMSE values that are lower than the tolerance outlined in the project rubric. 
+A modern engineering rebuild of the Extended Kalman Filter project from
+Udacity's Self-Driving Car Engineer Nanodegree.
 
-This project involves the Term 2 Simulator which can be downloaded [here](https://github.com/udacity/self-driving-car-sim/releases)
+The project will estimate a moving object's two-dimensional position and
+velocity by combining asynchronous lidar and radar measurements. Its focus is
+a reusable C++ estimator, reproducible builds, automated verification, and
+quantitative evaluation, with an optional connection to the Udacity simulator.
 
-This repository includes two files that can be used to set up and install [uWebSocketIO](https://github.com/uWebSockets/uWebSockets) for either Linux or Mac systems. For windows you can use either Docker, VMware, or even [Windows 10 Bash on Ubuntu](https://www.howtogeek.com/249966/how-to-install-and-use-the-linux-bash-shell-on-windows-10/) to install uWebSocketIO. Please see the uWebSocketIO Starter Guide page in the classroom within the EKF Project lesson for the required version and installation scripts.
+**Current stage: project definition.** The original implementation was completed
+successfully as coursework. The modern implementation, build configuration,
+tests, and CI have not been created yet. Features and acceptance criteria below
+describe planned work, not verified capabilities.
 
-Once the install for uWebSocketIO is complete, the main program can be built and run by doing the following from the project top directory.
+**Development platforms:** Ubuntu is the primary development environment.
+The core library, offline application, and automated tests are intended to
+build and run on both Ubuntu and Windows. Platform support will be claimed only
+after verification. Simulator compatibility is tracked separately.
 
-1. mkdir build
-2. cd build
-3. cmake ..
-4. make
-5. ./ExtendedKF
+## Goal
 
-Tips for setting up your environment can be found in the classroom lesson for this project.
+Turn the original coursework into a maintainable sensor-fusion project that
+another developer can build, test, understand, and evaluate.
 
-Note that the programs that need to be written to accomplish the project are src/FusionEKF.cpp, src/FusionEKF.h, kalman_filter.cpp, kalman_filter.h, tools.cpp, and tools.h
+The modernization will retain the original problem and reference data while
+improving architecture, numerical reliability, dependency management, testing,
+and documentation. Repeating the starter-code exercise is not the objective.
 
-The program main.cpp has already been filled out, but feel free to modify it.
+## Planned capabilities
 
-Here is the main protocol that main.cpp uses for uWebSocketIO in communicating with the simulator.
+- A reusable C++ library for initialization, prediction, lidar updates, radar
+  updates, and explicit reset.
+- An offline command-line application that replays timestamped measurements
+  without requiring Unity or a network connection.
+- Validated parsing with clear diagnostics for malformed or unsupported input.
+- Exported estimates, component-wise RMSE, and reproducible run metadata.
+- Lidar-only, radar-only, and fused evaluation modes.
+- Trajectory and error plots for comparing estimates with ground truth.
+- A separate adapter for the original simulator's communication protocol.
+- Automated mathematical, regression, and integration checks.
 
+## Estimation model
 
-INPUT: values provided by the simulator to the c++ program
+The state is `[px, py, vx, vy]`: Cartesian position in metres and velocity
+in metres per second. The baseline uses a constant-velocity motion model with
+process noise representing unmodelled acceleration.
 
-["sensor_measurement"] => the measurement that the simulator observed (either lidar or radar)
+| Sensor | Observation | Update |
+| --- | --- | --- |
+| Lidar | Cartesian position `[px, py]` | Linear Kalman filter |
+| Radar | Range, bearing, and radial velocity `[rho, phi, rhodot]` | Extended Kalman filter |
 
+The first accepted measurement initializes the state, covariance, and timestamp.
+Subsequent measurements determine the elapsed time, update the transition and
+process covariance matrices, trigger prediction, and apply the sensor update.
 
-OUTPUT: values provided by the c++ program to the simulator
+Radar position is converted from polar to Cartesian coordinates for
+initialization. A single radial-velocity measurement does not uniquely determine
+both Cartesian velocity components. Initial velocity and covariance will be
+documented design choices.
 
-["estimate_x"] <= kalman filter estimated position x
-["estimate_y"] <= kalman filter estimated position y
-["rmse_x"]
-["rmse_y"]
-["rmse_vx"]
-["rmse_vy"]
+The radar innovation uses the nonlinear measurement prediction `z - h(x)`.
+Its bearing residual is normalized across the angular wrap boundary. The
+Jacobian is evaluated at the predicted state for the radar update.
 
----
+The baseline retains the supplied noise settings:
 
-## Other Important Dependencies
+| Setting | Value |
+| --- | --- |
+| Lidar measurement covariance | `diag(0.0225, 0.0225)` |
+| Radar measurement covariance | `diag(0.09, 0.0009, 0.09)` |
+| Acceleration noise variances | `noise_ax = 9`, `noise_ay = 9` |
 
-* cmake >= 3.5
-  * All OSes: [click here for installation instructions](https://cmake.org/install/)
-* make >= 4.1 (Linux, Mac), 3.81 (Windows)
-  * Linux: make is installed by default on most Linux distros
-  * Mac: [install Xcode command line tools to get make](https://developer.apple.com/xcode/features/)
-  * Windows: [Click here for installation instructions](http://gnuwin32.sourceforge.net/packages/make.htm)
-* gcc/g++ >= 5.4
-  * Linux: gcc / g++ is installed by default on most Linux distros
-  * Mac: same deal as make - [install Xcode command line tools](https://developer.apple.com/xcode/features/)
-  * Windows: recommend using [MinGW](http://www.mingw.org/)
+Parameter tuning is not required for the baseline. Any later experiment must
+record its changes and compare against the unchanged baseline.
 
-## Basic Build Instructions
+## Data contract
 
-1. Clone this repo.
-2. Make a build directory: `mkdir build && cd build`
-3. Compile: `cmake .. && make` 
-   * On windows, you may need to run: `cmake .. -G "Unix Makefiles" && make`
-4. Run it: `./ExtendedKF `
+The initial reference dataset is
+`obj_pose-laser-radar-synthetic-input.txt`. Each row represents one measurement:
 
-## Editor Settings
+```text
+L px_measured py_measured timestamp px_gt py_gt vx_gt vy_gt yaw_gt yawrate_gt
+R rho_measured phi_measured rhodot_measured timestamp px_gt py_gt vx_gt vy_gt yaw_gt yawrate_gt
+```
 
-We've purposefully kept editor configuration files out of this repo in order to
-keep it as simple and environment agnostic as possible. However, we recommend
-using the following settings:
+Only sensor observations and timestamps enter the estimator. Ground truth is
+kept separate and used exclusively for evaluation. Yaw and yaw rate are not
+part of this project's estimated state.
 
-* indent using spaces
-* set tab width to 2 spaces (keeps the matrices in source code aligned)
+Original timestamps will be stored as integers and elapsed time converted to
+seconds. Timestamp units, coordinate conventions, dataset provenance, and
+actual available row formats will be verified against the reference files
+before implementing the parser.
 
-## Code Style
+Input validation will cover unknown sensor types, malformed rows, non-finite
+values, invalid ranges, and timestamp ordering. Policies for duplicate
+timestamps and near-zero radar range must be explicit and tested.
 
-Please (do your best to) stick to [Google's C++ style guide](https://google.github.io/styleguide/cppguide.html).
+## Architecture
 
-## Generating Additional Data
+| Component | Responsibility |
+| --- | --- |
+| Estimation library | State, covariance, motion and measurement models, filtering lifecycle |
+| Input adapters | Convert dataset rows or simulator messages into validated measurements |
+| Offline application | Configure and replay a run, coordinate evaluation, write artifacts |
+| Evaluation | Align estimates with ground truth and calculate metrics |
+| Simulator adapter | Handle connections, protocol messages, and run resets |
+| Analysis tools | Produce plots and comparisons from exported results |
 
-This is optional!
+The estimation library must not depend on Unity, network transport, plotting,
+or ground truth. Offline replay and simulator integration will use the same
+estimation interfaces.
 
-If you'd like to generate your own radar and lidar data, see the
-[utilities repo](https://github.com/udacity/CarND-Mercedes-SF-Utilities) for
-Matlab scripts that can generate additional data.
+The simulator is a client; the C++ adapter is its server. Incoming messages carry
+`sensor_measurement`. Responses contain `estimate_x`, `estimate_y`, `rmse_x`,
+`rmse_y`, `rmse_vx`, and `rmse_vy`. Compatibility includes the actual message
+framing, not only these field names.
 
-## Project Instructions and Rubric
+A new run must reset estimator state, timestamps, and evaluation history
+together. Reconnection and simulator restart behavior will be defined and
+verified during integration.
 
-Note: regardless of the changes you make, your project must be buildable using
-cmake and make!
+## Development tools and platform strategy
 
-More information is only accessible by people who are already enrolled in Term 2
-of CarND. If you are enrolled, see [the project resources page](https://classroom.udacity.com/nanodegrees/nd013/parts/40f38239-66b6-46ec-ae68-03afd8a601c8/modules/0949fca6-b379-42af-a919-ee50aa304e6a/lessons/f758c44c-5e40-4e01-93b5-1a82aa4e044f/concepts/382ebfd6-1d55-4487-84a5-b6a5a4ba1e47)
-for instructions and the project rubric.
+| Area | Planned approach |
+| --- | --- |
+| Build | Target-based CMake, with documented presets and out-of-source builds |
+| C++ dependencies | Versioned, reproducible dependency resolution; manager to be selected |
+| C++ tests | A dedicated test framework integrated with CTest; framework to be selected |
+| Formatting and analysis | clang-format, clang-tidy, and compiler warnings |
+| Runtime checks | Sanitizer-enabled checks where the selected toolchain supports them |
+| Continuous integration | GitHub Actions builds and tests on Ubuntu and Windows |
+| Optional Python analysis | uv for dependencies; pytest, Ruff, and mypy for maintained Python code |
 
-## Hints and Tips!
+The C++ standard, minimum tool versions, dependency versions, and supported
+compiler matrix will be selected during environment setup. Python is supporting
+tooling, not a dependency of the core estimator.
 
-* You don't have to follow this directory structure, but if you do, your work
-  will span all of the .cpp files here. Keep an eye out for TODOs.
-* Students have reported rapid expansion of log files when using the term 2 simulator.  This appears to be associated with not being connected to uWebSockets.  If this does occur,  please make sure you are conneted to uWebSockets. The following workaround may also be effective at preventing large log files.
+Ubuntu is the first development target. Windows must have a documented native
+build and test workflow; WSL2 alone will not count as native Windows validation.
+Paths and application interfaces must not assume a particular shell or machine.
+CMake must retain a Make-compatible build path for the original course workflow,
+while allowing appropriate generators on Windows.
 
-    + create an empty log file
-    + remove write permissions so that the simulator can't write to log
- * Please note that the ```Eigen``` library does not initialize ```VectorXd``` or ```MatrixXd``` objects with zeros upon creation.
+Docker is optional. It will be introduced only if it solves a concrete
+reproducibility or deployment need. Building and testing the estimator must not
+require a graphical desktop or simulator installation.
 
-## Call for IDE Profiles Pull Requests
+## Verification and evaluation
 
-Help your fellow students!
+Verification will include:
 
-We decided to create Makefiles with cmake to keep this project as platform
-agnostic as possible. Similarly, we omitted IDE profiles in order to ensure
-that students don't feel pressured to use one IDE or another.
+- Small analytical examples for prediction and measurement updates.
+- Jacobian checks against numerical derivatives away from singularities.
+- Angle-wrap, near-zero-range, initialization, and reset behavior.
+- Invalid input and timestamp-policy tests.
+- Finite state values and covariance symmetry and positive semidefiniteness
+  within documented numerical tolerances.
+- Dataset replay regression tests with fixed configuration and explicit
+  tolerances, including comparisons across supported platforms.
+- Offline application integration tests and simulator protocol checks.
 
-However! We'd love to help people get up and running with their IDEs of choice.
-If you've created a profile for an IDE that you think other students would
-appreciate, we'd love to have you add the requisite profile files and
-instructions to ide_profiles/. For example if you wanted to add a VS Code
-profile, you'd add:
+Numerical design will prefer solving linear systems to explicitly inverting
+matrices and will document the covariance-update strategy.
 
-* /ide_profiles/vscode/.vscode
-* /ide_profiles/vscode/README.md
+Evaluation will report separate RMSE values for `px`, `py`, `vx`, and `vy`,
+along with sample counts and the evaluation interval. Sensor-mode comparisons
+must define a common scoring timeline and initialization policy; comparing
+metrics over unrelated subsets would be misleading.
 
-The README should explain what the profile does, how to take advantage of it,
-and how to install it.
+Each recorded experiment should identify the source revision, dataset
+fingerprint, configuration, toolchain, sensor mode, and relevant dependency
+versions. Results should include estimates, metrics, and trajectory/error plots.
+Existing run artifacts should be protected from accidental overwrite.
 
-Regardless of the IDE used, every submitted project must
-still be compilable with cmake and make.
+The legacy implementation is a comparison reference, not an unquestioned
+correctness oracle. The original rubric's thresholds may be retained as
+historical benchmarks once verified. Modern numerical acceptance thresholds
+will be documented before regression tests are finalized.
 
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
+**Results:** no modern implementation has been evaluated yet. Numerical
+agreement across platforms will use tolerances rather than a promise of
+bit-for-bit identical floating-point output.
 
+## Milestones and acceptance criteria
+
+| Milestone | Completion criteria |
+| --- | --- |
+| 1. Repository and toolchain | Repository ownership and branch layout settled; dependencies and tool versions selected; minimal build and test workflow works on Ubuntu and Windows |
+| 2. Data and interfaces | Dataset provenance and units verified; measurement/state contracts and validation policies documented; parser tests pass |
+| 3. Estimator | Prediction and both updates implemented; analytical, edge-case, covariance, and lifecycle checks pass |
+| 4. Offline evaluation | Dataset replay exports reproducible artifacts; numerical regression criteria are defined and met; sensor-mode comparisons are documented |
+| 5. Simulator adapter | Measurements and responses integrate with the same estimator; restart behavior verified; working simulator platform and version recorded |
+| 6. Release documentation | Clean-checkout instructions verified on both platforms; CI passes; results, design decisions, attribution, and limitations documented |
+
+The simulator adapter is optional for users of the library and offline
+application, but remains a planned project deliverable. Simulator failures must
+not block progress on the estimator or its automated validation.
+
+## Current project structure
+
+The existing reference folders are:
+
+```text
+legacy/             Original completed implementation
+udacity_baseline/   Udacity starter templates and reference data
+simulator/          Local simulator distributions
+README.md           Modern project definition
+```
+
+This is the current reference layout, not the final source layout. The modern
+library, applications, tests, configuration, and analysis directories will be
+introduced as their responsibilities are implemented.
+
+The outer repository and modernization branch arrangement still need to be
+verified and finalized. Reference folders must not accidentally become embedded
+Git repositories in the modern project's history. Their inclusion or exclusion
+policy will be decided explicitly.
+
+## Setup and usage
+
+There are no modern build or execution commands yet. Verified Ubuntu and Windows
+instructions will be added as the toolchain and applications become available.
+Legacy commands describe the historical implementation only.
+
+The Windows simulator currently closes during startup on the development PC.
+Testing its Linux build on the Ubuntu laptop is planned; compatibility has not
+yet been confirmed. Simulator binaries are local resources and are not intended
+for inclusion in the modern repository.
+
+## Scope and working approach
+
+- The project owner writes implementation code and manages project files and
+  folders. The assistant guides design, reviews code, and maintains authorized
+  documentation.
+- Work proceeds in small, reviewable steps with verification appropriate to each
+  change.
+- The original implementation and Udacity baseline remain reference material.
+  Modernization does not require copying their architecture or bundled build
+  artifacts.
+- Infrastructure must serve correctness, maintainability, or reproducibility.
+- This is an educational tracking system, not a safety-certified automotive
+  component. Multi-object tracking, perception from raw sensor signals, and
+  vehicle control are outside the initial scope.
+
+## Attribution and licensing
+
+- [Original implementation](https://github.com/FelipeZerokun/SDCE-05-Extended-Kalman-Filter)
+- [Udacity starter project](https://github.com/udacity/CarND-Extended-Kalman-Filter-Project)
+- [Udacity simulator releases](https://github.com/udacity/self-driving-car-sim/releases)
+
+Applicable upstream notices must be preserved when reusing code or data.
+The modern project's license and redistribution permissions for reference
+materials will be reviewed before publication; no new license is asserted here.
