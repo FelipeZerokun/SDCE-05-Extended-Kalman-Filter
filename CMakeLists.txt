@@ -12,3 +12,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(CTest)
+
+find_package(Eigen3 CONFIG REQUIRED)
+
+if(BUILD_TESTING)
+    find_package(Catch2 3 CONFIG REQUIRED)
+endif()
+
