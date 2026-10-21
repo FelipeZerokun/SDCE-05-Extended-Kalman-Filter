@@ -8,7 +8,7 @@ velocity by combining asynchronous lidar and radar measurements. Its focus is
 a reusable C++ estimator, reproducible builds, automated verification, and
 quantitative evaluation, with an optional connection to the Udacity simulator.
 
-**Current stage: Milestone 2 — RMSE implemented and tested on Windows.**
+**Current stage: Milestone 2 complete — RMSE tested on Windows and Ubuntu.**
 The project began with nine unchanged Udacity starter files. RMSE is now
 implemented in `src/tools.cpp`, with its contract documented in `src/tools.h`.
 The starter structure is retained; the legacy solution remains a reference.
@@ -16,9 +16,10 @@ The starter structure is retained; the legacy solution remains a reference.
 The user successfully configured and built `ekf_core` and `ekf_tests` with
 MSVC in Debug mode. All nine CTest cases passed on 2026-10-21; the assistant
 inspected the saved CTest log but did not independently rerun the tests.
-Ubuntu environment configuration and simulator launch are user-verified;
-the new RMSE targets have not yet been built or tested on Ubuntu.
-Final owner review, commit, and push of Milestone 2 remain pending.
+The user also reports successful Ubuntu validation: all nine CTest cases passed
+in 0.09 seconds. The assistant has not independently run or inspected logs for
+the Ubuntu tests. The owner reports committing and pushing the implementation;
+this documentation follow-up records the subsequent Ubuntu result.
 Full filtering, offline replay, simulator integration, and CI remain planned.
 
 **Development platforms:** Ubuntu is the primary development environment.
@@ -190,7 +191,7 @@ correctness oracle. The original rubric's thresholds may be retained as
 historical benchmarks once verified. Modern numerical acceptance thresholds
 will be documented before regression tests are finalized.
 
-**Results:** nine RMSE test cases pass on Windows Debug (user-run, saved log inspected). No full-estimator dataset evaluation has been performed. Numerical
+**Results:** nine RMSE test cases pass on Windows Debug (user-run, saved log inspected) and Ubuntu Debug (user-reported; 0.09 seconds total). No full-estimator dataset evaluation has been performed. Numerical
 agreement across platforms will use tolerances rather than a promise of
 bit-for-bit identical floating-point output.
 
@@ -200,7 +201,7 @@ bit-for-bit identical floating-point output.
 | --- | --- | --- |
 | 0. Project definition | Scope, architecture, boundaries, README | Complete |
 | 1. Modernization baseline | Copy the Udacity starter sources unchanged into src; verify the starting point | Complete: all nine copied files verified byte-for-byte against the local starter on Windows |
-| 2. First tested component | Review references; migrate and test RMSE; establish library and test targets | RMSE contract and implementation complete; nine tests pass on Windows Debug; owner review/commit/push pending |
+| 2. First tested component | Review references; migrate and test RMSE; establish library and test targets | Complete: documented RMSE contract, library/test targets, nine passing tests on Windows and Ubuntu; implementation committed and pushed by owner |
 | 3. Reproducible development workflow | Shared presets, formatting, static analysis, Ubuntu/Windows CI | Formatting configuration introduced early; shared tool version, presets, analysis and CI pending |
 | 4. Measurements and dataset input | Types, parser, validation, provenance | Planned |
 | 5. Core estimation | Initialization, prediction, lidar update, radar update | Planned |
@@ -212,7 +213,7 @@ Ubuntu environment setup is a completed prerequisite based on user reports.
 The modernization starts from the Udacity starter, with the completed legacy
 implementation retained as a reference for review and selective reuse. The
 bundled Eigen directory was not copied; Eigen is supplied through vcpkg.
-The original source baseline was verified before edits. Windows RMSE build and tests are now user-verified.
+The original source baseline was verified before edits. Windows and Ubuntu RMSE builds and tests are now user-verified.
 
 Milestone 2 requires a documented RMSE contract and failure behavior, a reusable
 library and test executable that compile and link, and passing CTest-discovered
@@ -282,14 +283,15 @@ cmake -S . -B build/ubuntu-debug \
 VS Code configuration also succeeds according to the user. These results have
 not been independently reproduced by the assistant on Ubuntu.
 
-To build and test the new targets on Ubuntu (not yet verified there):
+User-verified Ubuntu build and test commands:
 
 ```sh
-cmake --build build/ubuntu-debug
+cmake --build build/ubuntu-debug --parallel 2
 ctest --test-dir build/ubuntu-debug --output-on-failure
 ```
 
-The Ubuntu build/test commands above remain unverified for these targets.
+The user reports all nine Ubuntu tests passing in 0.09 seconds. This validates
+the current RMSE targets only; full estimator and application support remain planned.
 
 The user verified the following native Windows PowerShell workflow with CMake
 4.4.3, Visual Studio Build Tools 2026, MSVC 19.51.36256.0, and Windows SDK
