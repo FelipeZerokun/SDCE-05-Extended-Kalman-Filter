@@ -141,7 +141,7 @@ verified during integration.
 
 C++17 is required, with compiler extensions disabled; CMake 3.22 is the minimum.
 The Ubuntu development environment uses Ubuntu 22.04.5 LTS, GCC/G++ 11.4.0, CMake 3.22.1,
-clang-format 14, clang-tidy/LLVM 14, and uv 0.13.3. GCC 12.3.0 is also installed
+clang-tidy/LLVM 14, and uv 0.13.3. Project formatting uses clang-format 23.1.3 via uv. GCC 12.3.0 is also installed
 but is not selected. Python tooling will be introduced when analysis requires
 it; no Python project is needed for this milestone.
 
@@ -200,7 +200,7 @@ bit-for-bit identical floating-point output.
 | 0. Project definition | Scope, architecture, boundaries, README | Complete |
 | 1. Modernization baseline | Copy the Udacity starter sources unchanged into src; verify the starting point | Complete: all nine copied files verified byte-for-byte against the local starter on Windows |
 | 2. First tested component | Review references; migrate and test RMSE; establish library and test targets | Complete: documented RMSE contract, library/test targets, nine passing tests on Windows and Ubuntu |
-| 3. Reproducible development workflow | Shared presets, formatting, static analysis, Ubuntu/Windows CI | Formatting configuration introduced early; shared tool version, presets, analysis and CI pending |
+| 3. Reproducible development workflow | Shared presets, formatting, static analysis, Ubuntu/Windows CI | Shared formatting configuration and clang-format 23.1.3 verified on both platforms; presets, analysis and CI pending |
 | 4. Measurements and dataset input | Types, parser, validation, provenance | Planned |
 | 5. Core estimation | Initialization, prediction, lidar update, radar update | Planned |
 | 6. Offline tracking application | Replay, configuration, artifacts, regression criteria | Planned |
@@ -337,20 +337,45 @@ applied to `src/tools.cpp`, `src/tools.h`, and `tests/test_tools.cpp`. All nine
 Windows Debug tests passed after rebuilding the formatted sources. Legacy, starter-reference, and bundled third-party files were not
 formatted.
 
-On Windows, the VS Code C/C++ extension currently bundles clang-format 23.1.0.
-The following PowerShell commands use that installation; the versioned extension
-path may change after an extension update:
+The project formatter is **clang-format 23.1.3** on Windows and Ubuntu.
+Install the exact version as an isolated tool using uv (no Python project is
+required). The community-maintained `clang-format` PyPI distribution packages
+LLVM's formatter:
 
-```powershell
-$clangFormat = "$env:USERPROFILE/.vscode/extensions/ms-vscode.cpptools-1.34.4-win32-x64/LLVM/bin/clang-format.exe"
-& $clangFormat -i --style=file src/tools.cpp src/tools.h tests/test_tools.cpp
-& $clangFormat --dry-run --Werror src/tools.cpp src/tools.h tests/test_tools.cpp
+```text
+uv tool install "clang-format==23.1.3"
+uv tool dir --bin
 ```
 
-The Ubuntu development environment currently uses clang-format 14.
-Formatter versions are not yet aligned, so identical output across machines is
-not guaranteed. Pinning a shared version and adding CI enforcement remain part
-of Milestone 3. `.gitattributes` normalizes C++ source files to LF line endings.
+Windows PowerShell, from the project root:
+
+```powershell
+$toolBin = uv tool dir --bin
+& "$toolBin/clang-format.exe" --version
+& "$toolBin/clang-format.exe" --style=file --dry-run --Werror src/tools.cpp src/tools.h tests/test_tools.cpp
+```
+
+Ubuntu, from the project root:
+
+```bash
+tool_bin="$(uv tool dir --bin)"
+"$tool_bin/clang-format" --version
+"$tool_bin/clang-format" --style=file --dry-run --Werror src/tools.cpp src/tools.h tests/test_tools.cpp
+```
+
+Both platforms pass the formatting check with version 23.1.3. Replace
+`--dry-run --Werror` with `-i` to apply formatting to the listed files, then
+review the diff. Keep the file list scoped to maintained project sources;
+do not format bundled dependencies or local reference copies.
+
+In each machine's ignored `.vscode/settings.json`, set `C_Cpp.formatting` to
+`clangFormat` and `C_Cpp.clang_format_path` to the absolute executable path
+inside the directory printed by `uv tool dir --bin` (`clang-format.exe` on
+Windows, `clang-format` on Ubuntu). This selects the pinned formatter instead
+of the extension-bundled or system version. Local paths may differ.
+
+CI enforcement remains planned. `.gitattributes` normalizes C++ source files
+to LF line endings.
 
 ## Scope and working approach
 
