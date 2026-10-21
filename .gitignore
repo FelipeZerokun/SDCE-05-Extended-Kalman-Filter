@@ -13,3 +13,6 @@
 
 # Sensor data
 /data/
+
+# Personal documentation
+/docs/sensor-fusion-ekf-reference.pdf

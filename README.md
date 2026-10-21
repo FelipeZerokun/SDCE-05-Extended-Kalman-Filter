@@ -8,18 +8,18 @@ velocity by combining asynchronous lidar and radar measurements. Its focus is
 a reusable C++ estimator, reproducible builds, automated verification, and
 quantitative evaluation, with an optional connection to the Udacity simulator.
 
-**Current stage: Milestone 1 complete — modernization baseline established.**
-Nine source/header files in `src/` are unchanged copies of the Udacity starter,
-verified byte-for-byte against the local reference on Windows on 2026-10-21.
-The starter's unfinished functions remain unfinished. The completed coursework
-in `legacy/` is a reference for review and selective reuse during modernization.
-Milestone 2 (RMSE implementation and tests) is next; its contract is not yet settled.
+**Current stage: Milestone 2 — RMSE implemented and tested on Windows.**
+The project began with nine unchanged Udacity starter files. RMSE is now
+implemented in `src/tools.cpp`, with its contract documented in `src/tools.h`.
+The starter structure is retained; the legacy solution remains a reference.
 
-Ubuntu dependency installation, CMake configuration (including VS Code), and
-Linux simulator launch are user-verified. Initial CMake and vcpkg files exist,
-but CMake defines no library, application, or test targets yet. No modern build,
-test run, or simulator integration has been verified. Capabilities below remain
-planned unless explicitly stated otherwise.
+The user successfully configured and built `ekf_core` and `ekf_tests` with
+MSVC in Debug mode. All nine CTest cases passed on 2026-10-21; the assistant
+inspected the saved CTest log but did not independently rerun the tests.
+Ubuntu environment configuration and simulator launch are user-verified;
+the new RMSE targets have not yet been built or tested on Ubuntu.
+Final owner review, commit, and push of Milestone 2 remain pending.
+Full filtering, offline replay, simulator integration, and CI remain planned.
 
 **Development platforms:** Ubuntu is the primary development environment.
 The core library, offline application, and automated tests are intended to
@@ -136,7 +136,7 @@ verified during integration.
 | --- | --- |
 | Build | Target-based CMake, with documented presets and out-of-source builds |
 | C++ dependencies | vcpkg manifest mode with a recorded registry baseline; Eigen |
-| C++ tests | Catch2 v3-compatible API with CTest; targets pending |
+| C++ tests | Catch2 v3-compatible API with CTest; ekf_tests target implemented |
 | Formatting and analysis | clang-format, clang-tidy, and compiler warnings |
 | Runtime checks | Sanitizer-enabled checks where the selected toolchain supports them |
 | Continuous integration | GitHub Actions builds and tests on Ubuntu and Windows |
@@ -190,7 +190,7 @@ correctness oracle. The original rubric's thresholds may be retained as
 historical benchmarks once verified. Modern numerical acceptance thresholds
 will be documented before regression tests are finalized.
 
-**Results:** no modern implementation has been evaluated yet. Numerical
+**Results:** nine RMSE test cases pass on Windows Debug (user-run, saved log inspected). No full-estimator dataset evaluation has been performed. Numerical
 agreement across platforms will use tolerances rather than a promise of
 bit-for-bit identical floating-point output.
 
@@ -200,8 +200,8 @@ bit-for-bit identical floating-point output.
 | --- | --- | --- |
 | 0. Project definition | Scope, architecture, boundaries, README | Complete |
 | 1. Modernization baseline | Copy the Udacity starter sources unchanged into src; verify the starting point | Complete: all nine copied files verified byte-for-byte against the local starter on Windows |
-| 2. First tested component | Review references; migrate and test RMSE; establish library and test targets | Next; reference code reviewed on Windows, contract, implementation and tests pending |
-| 3. Reproducible development workflow | Shared presets, formatting, static analysis, Ubuntu/Windows CI | Planned |
+| 2. First tested component | Review references; migrate and test RMSE; establish library and test targets | RMSE contract and implementation complete; nine tests pass on Windows Debug; owner review/commit/push pending |
+| 3. Reproducible development workflow | Shared presets, formatting, static analysis, Ubuntu/Windows CI | Formatting configuration introduced early; shared tool version, presets, analysis and CI pending |
 | 4. Measurements and dataset input | Types, parser, validation, provenance | Planned |
 | 5. Core estimation | Initialization, prediction, lidar update, radar update | Planned |
 | 6. Offline tracking application | Replay, configuration, artifacts, regression criteria | Planned |
@@ -212,7 +212,7 @@ Ubuntu environment setup is a completed prerequisite based on user reports.
 The modernization starts from the Udacity starter, with the completed legacy
 implementation retained as a reference for review and selective reuse. The
 bundled Eigen directory was not copied; Eigen is supplied through vcpkg.
-The source baseline is verified, but no modern build or test run is verified.
+The original source baseline was verified before edits. Windows RMSE build and tests are now user-verified.
 
 Milestone 2 requires a documented RMSE contract and failure behavior, a reusable
 library and test executable that compile and link, and passing CTest-discovered
@@ -230,11 +230,11 @@ It contains:
 
 ```text
 include/ekf/        Empty modern public-header directory
-src/               Nine unchanged Udacity starter source/header files
+src/               Starter structure with RMSE implementation and documented contract
 apps/              Empty modern application directory
-tests/             Empty modern test directory
-docs/              Empty documentation directory
-CMakeLists.txt     C++17, CTest, Eigen and conditional Catch2 discovery; no targets yet
+tests/             test_tools.cpp: nine RMSE test cases
+docs/              Local reference documentation
+CMakeLists.txt     C++17, ekf_core library, optional ekf_tests and CTest discovery
 vcpkg.json         Eigen and Catch2 dependencies with a registry baseline
 legacy/            Original completed implementation (ignored)
 udacity_baseline/  Udacity starter templates and reference data (ignored)
@@ -248,16 +248,15 @@ The copied starter files retain their original responsibilities:
 | `main.cpp` | Simulator transport and parsing; invokes filtering and RMSE |
 | `FusionEKF.cpp`, `FusionEKF.h` | Filter initialization and prediction/update orchestration |
 | `kalman_filter.cpp`, `kalman_filter.h` | State and covariance storage; prediction and update interfaces/stubs |
-| `tools.cpp`, `tools.h` | RMSE and radar Jacobian interfaces/stubs |
+| `tools.cpp`, `tools.h` | Implemented RMSE; Jacobian placeholder throws std::logic_error |
 | `measurement_package.h` | Sensor measurement representation |
 | `json.hpp` | Bundled JSON dependency used by the starter simulator entry point |
 
 The starter's bundled Eigen directory and old build artifacts were not copied.
-Eigen will be provided through the existing vcpkg/CMake configuration.
+Eigen is provided through the existing vcpkg/CMake configuration.
 `main.cpp` still depends on the old uWebSockets API; that dependency is not
 configured in the modern build. The current source snapshot is therefore a
-starting point for development, not a runnable application. RMSE testing will
-be established independently of simulator dependencies in Milestone 2.
+starting point for development, not a runnable application. RMSE tests run independently of simulator dependencies.
 
 The outer modern repository excludes the three local reference directories,
 `data/`, `build/`, `outputs/`, `CMakeUserPresets.json`, and `.vscode/`. Empty directories
@@ -283,20 +282,78 @@ cmake -S . -B build/ubuntu-debug \
 VS Code configuration also succeeds according to the user. These results have
 not been independently reproduced by the assistant on Ubuntu.
 
-After library and test targets exist, the expected commands are:
+To build and test the new targets on Ubuntu (not yet verified there):
 
 ```sh
 cmake --build build/ubuntu-debug
 ctest --test-dir build/ubuntu-debug --output-on-failure
 ```
 
-These build/test commands are not yet verified for the modern implementation.
-Native Windows builds and tests remain a future requirement.
+The Ubuntu build/test commands above remain unverified for these targets.
+
+The user verified the following native Windows PowerShell workflow with CMake
+4.4.3, Visual Studio Build Tools 2026, MSVC 19.51.36256.0, and Windows SDK
+10.0.26100.0. vcpkg resolved Catch2 3.16.0 and Eigen 5.0.1.
+Adjust the toolchain path if vcpkg is installed elsewhere.
+
+```powershell
+cmake -S . -B build/windows -G "Visual Studio 18 2026" -A x64 -DCMAKE_TOOLCHAIN_FILE="$env:USERPROFILE/tools/vcpkg/scripts/buildsystems/vcpkg.cmake" -DBUILD_TESTING=ON
+cmake --build build/windows --config Debug
+ctest --test-dir build/windows -C Debug --output-on-failure
+```
+
+If the local vcpkg checkout lacks the pinned baseline commit, fetch its remote
+history with `git -C "$env:USERPROFILE/tools/vcpkg" fetch origin`, then retry
+configuration without changing the manifest baseline.
+
+### Implemented RMSE contract and test coverage
+
+`Tools::CalculateRMSE` accepts constant references to paired sequences of
+four-component dynamic Eigen vectors in `[px, py, vx, vy]` order. The caller
+aligns observations. It returns component-wise RMSE in metres and metres/second.
+Empty inputs, unequal sequence lengths, incorrect state dimensions, and
+non-finite components throw `std::invalid_argument`. Non-finite arithmetic
+intermediates or results throw `std::overflow_error`.
+
+Direct squared-error accumulation can overflow even when the mathematical RMSE
+is representable; tiny squares can underflow to zero. Fixed-size vectors were
+considered, but the starter interface is retained with explicit dimension checks.
+
+Nine test cases cover identical sequences, one observation, opposite-signed
+errors, a hand-calculated multi-observation example, empty sequences, unequal
+lengths, incorrect state dimensions, NaN and both infinities in either input,
+and subtraction/squaring/accumulation overflow from finite inputs. Analytical
+comparisons use an absolute tolerance of `1e-12`, except exact zero for identical
+inputs. This validates RMSE only, not the unfinished filtering implementation.
 
 The Linux simulator launches successfully on Ubuntu according to the user.
 The Windows simulator crashes during startup; further troubleshooting is outside
 this milestone. Simulator integration will be verified on Ubuntu separately from
 native Windows core, offline application, and test support.
+
+## Source formatting
+
+The shared `.clang-format` uses LLVM style, two-space indentation, a 100-column
+wrapping target, spaces instead of tabs, and regrouped includes. Formatting was
+applied to `src/tools.cpp`, `src/tools.h`, and `tests/test_tools.cpp`. The user
+rebuilt and reran all nine Windows Debug tests afterward; the saved log records
+nine passes. Legacy, starter-reference, and bundled third-party files were not
+formatted.
+
+On Windows, the VS Code C/C++ extension currently bundles clang-format 23.1.0.
+The following PowerShell commands use that installation; the versioned extension
+path may change after an extension update:
+
+```powershell
+$clangFormat = "$env:USERPROFILE/.vscode/extensions/ms-vscode.cpptools-1.34.4-win32-x64/LLVM/bin/clang-format.exe"
+& $clangFormat -i --style=file src/tools.cpp src/tools.h tests/test_tools.cpp
+& $clangFormat --dry-run --Werror src/tools.cpp src/tools.h tests/test_tools.cpp
+```
+
+Ubuntu currently has clang-format 14 according to the environment report.
+Formatter versions are not yet aligned, so identical output across machines is
+not guaranteed. Pinning a shared version and adding CI enforcement remain part
+of Milestone 3. `.gitattributes` normalizes C++ source files to LF line endings.
 
 ## Scope and working approach
 

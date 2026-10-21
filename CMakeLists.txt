@@ -15,7 +15,32 @@ include(CTest)
 
 find_package(Eigen3 CONFIG REQUIRED)
 
+add_library(ekf_core STATIC
+    src/tools.cpp
+)
+
+target_include_directories(ekf_core PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+
+target_link_libraries(ekf_core PUBLIC
+    Eigen3::Eigen
+)
+
+target_compile_features(ekf_core PUBLIC cxx_std_17)
+
 if(BUILD_TESTING)
     find_package(Catch2 3 CONFIG REQUIRED)
-endif()
 
+    add_executable(ekf_tests
+        tests/test_tools.cpp
+    )
+
+    target_link_libraries(ekf_tests PRIVATE
+        ekf_core
+        Catch2::Catch2WithMain
+    )
+
+    include(Catch)
+    catch_discover_tests(ekf_tests)
+endif()
