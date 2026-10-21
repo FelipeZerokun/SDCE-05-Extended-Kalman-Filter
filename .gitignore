@@ -10,3 +10,6 @@
 # Personal configuration
 /CMakeUserPresets.json
 /.vscode/
+
+# Sensor data
+/data/

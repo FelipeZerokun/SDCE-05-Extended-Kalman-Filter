@@ -1,6 +1,6 @@
 # Extended Kalman Filter — C++
 
-A modern engineering rebuild of the Extended Kalman Filter project from
+An incremental modernization of the Extended Kalman Filter project from
 Udacity's Self-Driving Car Engineer Nanodegree.
 
 The project will estimate a moving object's two-dimensional position and
@@ -8,10 +8,18 @@ velocity by combining asynchronous lidar and radar measurements. Its focus is
 a reusable C++ estimator, reproducible builds, automated verification, and
 quantitative evaluation, with an optional connection to the Udacity simulator.
 
-**Current stage: project definition.** The original implementation was completed
-successfully as coursework. The modern implementation, build configuration,
-tests, and CI have not been created yet. Features and acceptance criteria below
-describe planned work, not verified capabilities.
+**Current stage: Milestone 1 complete — modernization baseline established.**
+Nine source/header files in `src/` are unchanged copies of the Udacity starter,
+verified byte-for-byte against the local reference on Windows on 2026-10-21.
+The starter's unfinished functions remain unfinished. The completed coursework
+in `legacy/` is a reference for review and selective reuse during modernization.
+Milestone 2 (RMSE implementation and tests) is next; its contract is not yet settled.
+
+Ubuntu dependency installation, CMake configuration (including VS Code), and
+Linux simulator launch are user-verified. Initial CMake and vcpkg files exist,
+but CMake defines no library, application, or test targets yet. No modern build,
+test run, or simulator integration has been verified. Capabilities below remain
+planned unless explicitly stated otherwise.
 
 **Development platforms:** Ubuntu is the primary development environment.
 The core library, offline application, and automated tests are intended to
@@ -127,16 +135,18 @@ verified during integration.
 | Area | Planned approach |
 | --- | --- |
 | Build | Target-based CMake, with documented presets and out-of-source builds |
-| C++ dependencies | Versioned, reproducible dependency resolution; manager to be selected |
-| C++ tests | A dedicated test framework integrated with CTest; framework to be selected |
+| C++ dependencies | vcpkg manifest mode with a recorded registry baseline; Eigen |
+| C++ tests | Catch2 v3-compatible API with CTest; targets pending |
 | Formatting and analysis | clang-format, clang-tidy, and compiler warnings |
 | Runtime checks | Sanitizer-enabled checks where the selected toolchain supports them |
 | Continuous integration | GitHub Actions builds and tests on Ubuntu and Windows |
 | Optional Python analysis | uv for dependencies; pytest, Ruff, and mypy for maintained Python code |
 
-The C++ standard, minimum tool versions, dependency versions, and supported
-compiler matrix will be selected during environment setup. Python is supporting
-tooling, not a dependency of the core estimator.
+C++17 is required, with compiler extensions disabled; CMake 3.22 is the minimum.
+The user reports Ubuntu 22.04.5 LTS, selected GCC/G++ 11.4.0, CMake 3.22.1,
+clang-format 14, clang-tidy/LLVM 14, and uv 0.13.3. GCC 12.3.0 is also installed
+but is not selected. Python tooling will be introduced when analysis requires
+it; no Python project is needed for this milestone.
 
 Ubuntu is the first development target. Windows must have a documented native
 build and test workflow; WSL2 alone will not count as native Windows validation.
@@ -186,14 +196,28 @@ bit-for-bit identical floating-point output.
 
 ## Milestones and acceptance criteria
 
-| Milestone | Completion criteria |
-| --- | --- |
-| 1. Repository and toolchain | Repository ownership and branch layout settled; dependencies and tool versions selected; minimal build and test workflow works on Ubuntu and Windows |
-| 2. Data and interfaces | Dataset provenance and units verified; measurement/state contracts and validation policies documented; parser tests pass |
-| 3. Estimator | Prediction and both updates implemented; analytical, edge-case, covariance, and lifecycle checks pass |
-| 4. Offline evaluation | Dataset replay exports reproducible artifacts; numerical regression criteria are defined and met; sensor-mode comparisons are documented |
-| 5. Simulator adapter | Measurements and responses integrate with the same estimator; restart behavior verified; working simulator platform and version recorded |
-| 6. Release documentation | Clean-checkout instructions verified on both platforms; CI passes; results, design decisions, attribution, and limitations documented |
+| Milestone | Scope | Status |
+| --- | --- | --- |
+| 0. Project definition | Scope, architecture, boundaries, README | Complete |
+| 1. Modernization baseline | Copy the Udacity starter sources unchanged into src; verify the starting point | Complete: all nine copied files verified byte-for-byte against the local starter on Windows |
+| 2. First tested component | Review references; migrate and test RMSE; establish library and test targets | Next; reference code reviewed on Windows, contract, implementation and tests pending |
+| 3. Reproducible development workflow | Shared presets, formatting, static analysis, Ubuntu/Windows CI | Planned |
+| 4. Measurements and dataset input | Types, parser, validation, provenance | Planned |
+| 5. Core estimation | Initialization, prediction, lidar update, radar update | Planned |
+| 6. Offline tracking application | Replay, configuration, artifacts, regression criteria | Planned |
+| 7. Evaluation and analysis | Sensor-mode comparisons, plots, error analysis | Planned |
+| 8. Simulator integration and release | Adapter, restart behavior, documentation and final verification | Planned |
+
+Ubuntu environment setup is a completed prerequisite based on user reports.
+The modernization starts from the Udacity starter, with the completed legacy
+implementation retained as a reference for review and selective reuse. The
+bundled Eigen directory was not copied; Eigen is supplied through vcpkg.
+The source baseline is verified, but no modern build or test run is verified.
+
+Milestone 2 requires a documented RMSE contract and failure behavior, a reusable
+library and test executable that compile and link, and passing CTest-discovered
+checks for analytical examples and invalid inputs. These tests must run without
+the simulator or full estimator. The owner reviews, commits, and pushes changes.
 
 The simulator adapter is optional for users of the library and offline
 application, but remains a planned project deliverable. Simulator failures must
@@ -201,34 +225,78 @@ not block progress on the estimator or its automated validation.
 
 ## Current project structure
 
-The existing reference folders are:
+The Windows checkout was inspected on 2026-10-21 on branch `modern/cpp`.
+It contains:
 
 ```text
-legacy/             Original completed implementation
-udacity_baseline/   Udacity starter templates and reference data
-simulator/          Local simulator distributions
-README.md           Modern project definition
+include/ekf/        Empty modern public-header directory
+src/               Nine unchanged Udacity starter source/header files
+apps/              Empty modern application directory
+tests/             Empty modern test directory
+docs/              Empty documentation directory
+CMakeLists.txt     C++17, CTest, Eigen and conditional Catch2 discovery; no targets yet
+vcpkg.json         Eigen and Catch2 dependencies with a registry baseline
+legacy/            Original completed implementation (ignored)
+udacity_baseline/  Udacity starter templates and reference data (ignored)
+simulator/         Local simulator distributions (ignored)
 ```
 
-This is the current reference layout, not the final source layout. The modern
-library, applications, tests, configuration, and analysis directories will be
-introduced as their responsibilities are implemented.
+The copied starter files retain their original responsibilities:
 
-The outer repository and modernization branch arrangement still need to be
-verified and finalized. Reference folders must not accidentally become embedded
-Git repositories in the modern project's history. Their inclusion or exclusion
-policy will be decided explicitly.
+| Files in `src/` | Starting responsibility |
+| --- | --- |
+| `main.cpp` | Simulator transport and parsing; invokes filtering and RMSE |
+| `FusionEKF.cpp`, `FusionEKF.h` | Filter initialization and prediction/update orchestration |
+| `kalman_filter.cpp`, `kalman_filter.h` | State and covariance storage; prediction and update interfaces/stubs |
+| `tools.cpp`, `tools.h` | RMSE and radar Jacobian interfaces/stubs |
+| `measurement_package.h` | Sensor measurement representation |
+| `json.hpp` | Bundled JSON dependency used by the starter simulator entry point |
+
+The starter's bundled Eigen directory and old build artifacts were not copied.
+Eigen will be provided through the existing vcpkg/CMake configuration.
+`main.cpp` still depends on the old uWebSockets API; that dependency is not
+configured in the modern build. The current source snapshot is therefore a
+starting point for development, not a runnable application. RMSE testing will
+be established independently of simulator dependencies in Milestone 2.
+
+The outer modern repository excludes the three local reference directories,
+`data/`, `build/`, `outputs/`, `CMakeUserPresets.json`, and `.vscode/`. Empty directories
+are not tracked by Git. No shared `CMakePresets.json` exists yet.
+Ubuntu reference availability is user-reported for `udacity_baseline/` and
+`simulator/`; the user subsequently confirmed matching folder structures and
+files on Ubuntu and Windows. This has not been independently checked on Ubuntu.
 
 ## Setup and usage
 
-There are no modern build or execution commands yet. Verified Ubuntu and Windows
-instructions will be added as the toolchain and applications become available.
-Legacy commands describe the historical implementation only.
+vcpkg is installed outside the Ubuntu repository at `$HOME/tools/vcpkg`.
+The manifest records baseline `469a0504e4a6ebf6173d1c0f51a7fa34c382fd43`.
+The existing manifest uses `"version": "0.1.0"`.
 
-The Windows simulator currently closes during startup on the development PC.
-Testing its Linux build on the Ubuntu laptop is planned; compatibility has not
-yet been confirmed. Simulator binaries are local resources and are not intended
-for inclusion in the modern repository.
+The user reports successful dependency installation and configuration with:
+
+```sh
+cmake -S . -B build/ubuntu-debug \
+    -DCMAKE_BUILD_TYPE=Debug \
+    -DCMAKE_TOOLCHAIN_FILE="$HOME/tools/vcpkg/scripts/buildsystems/vcpkg.cmake"
+```
+
+VS Code configuration also succeeds according to the user. These results have
+not been independently reproduced by the assistant on Ubuntu.
+
+After library and test targets exist, the expected commands are:
+
+```sh
+cmake --build build/ubuntu-debug
+ctest --test-dir build/ubuntu-debug --output-on-failure
+```
+
+These build/test commands are not yet verified for the modern implementation.
+Native Windows builds and tests remain a future requirement.
+
+The Linux simulator launches successfully on Ubuntu according to the user.
+The Windows simulator crashes during startup; further troubleshooting is outside
+this milestone. Simulator integration will be verified on Ubuntu separately from
+native Windows core, offline application, and test support.
 
 ## Scope and working approach
 
