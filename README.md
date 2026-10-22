@@ -200,7 +200,7 @@ bit-for-bit identical floating-point output.
 | 0. Project definition | Scope, architecture, boundaries, README | Complete |
 | 1. Modernization baseline | Copy the Udacity starter sources unchanged into src; verify the starting point | Complete: all nine copied files verified byte-for-byte against the local starter on Windows |
 | 2. First tested component | Review references; migrate and test RMSE; establish library and test targets | Complete: documented RMSE contract, library/test targets, nine passing tests on Windows and Ubuntu |
-| 3. Reproducible development workflow | Shared presets, formatting, static analysis, Ubuntu/Windows CI | Shared formatting configuration and clang-format 23.1.3 verified on both platforms; Windows configure/build/test presets verified; Ubuntu preset validation, analysis and CI pending |
+| 3. Reproducible development workflow | Shared presets, formatting, static analysis, Ubuntu/Windows CI | Shared formatting configuration and clang-format 23.1.3 verified on both platforms; configure/build/test presets verified on both platforms; compiler warnings, analysis and CI pending |
 | 4. Measurements and dataset input | Types, parser, validation, provenance | Planned |
 | 5. Core estimation | Initialization, prediction, lidar update, radar update | Planned |
 | 6. Offline tracking application | Replay, configuration, artifacts, regression criteria | Planned |
@@ -332,7 +332,8 @@ native Windows core, offline application, and test support.
 ### CMake presets
 
 `CMakePresets.json` provides shared `windows-debug` and `ubuntu-debug`
-configure, build, and test presets. Format version 3 supports CMake 3.22;
+configure, build, and test presets. Ubuntu uses Ninja (required on PATH);
+Windows uses the Visual Studio generator. Format version 3 supports CMake 3.22;
 the Windows preset additionally requires a CMake version supporting the
 Visual Studio 18 2026 generator and that toolchain installed.
 
@@ -383,8 +384,7 @@ ctest --preset windows-local
 ```
 
 This Windows Debug preset workflow passes all nine RMSE tests. The equivalent
-Ubuntu preset workflow is pending validation (the explicit Ubuntu commands
-above already passed):
+Ubuntu Debug preset workflow also configures successfully and passes all nine tests:
 
 ```bash
 cmake --preset ubuntu-local
@@ -392,7 +392,9 @@ cmake --build --preset ubuntu-local
 ctest --preset ubuntu-local
 ```
 
-Presets reuse `build/windows` and `build/ubuntu-debug`. Test presets display
+Presets reuse `build/windows` and `build/ubuntu-debug`. The Ubuntu directory
+uses Ninja; a build reporting `no work to do` is already up to date. An existing
+build directory must use the same generator as its preset. Test presets display
 failure output and fail when no tests are discovered. Shared presets can also
 be used directly with `VCPKG_ROOT` supplied by the calling environment.
 
