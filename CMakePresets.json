@@ -17,7 +17,7 @@
         {
             "name": "ubuntu-debug",
             "inherits": "base",
-            "generator": "Unix Makefiles",
+            "generator": "Ninja",
             "binaryDir": "${sourceDir}/build/ubuntu-debug",
             "condition": {
                 "type": "equals",
