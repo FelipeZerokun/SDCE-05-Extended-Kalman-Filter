@@ -10,7 +10,7 @@ part of the modern build.
 
 ## Results
 
-Windows Debug evaluation on 2026-10-23, using all 500 observations
+Windows and Ubuntu Debug evaluations on 2026-10-23, using all 500 observations
 (250 lidar, 250 radar), including the initial estimate:
 
 | Component | RMSE | Benchmark maximum | Result |
@@ -27,8 +27,10 @@ The executable compares unrounded results.
 The 40 core/parser tests passed on Windows and Ubuntu; Ubuntu clang-tidy
 returned 0 with dependency diagnostics suppressed. The runner adds one CTest
 integration test for mixed-sensor replay, malformed rows, empty input, and
-benchmark failure. All 41 tests pass on Windows. The new runner's Ubuntu
-verification and updated GitHub CI run are pending.
+benchmark failure. All 41 tests pass on Windows and Ubuntu. Both platforms
+produce the RMSE values shown above to six decimal places. The updated GitHub
+Actions workflow passes, including formatting, both platform builds/tests,
+and Ubuntu static analysis.
 
 ## Build and run
 
@@ -212,13 +214,13 @@ mean dependencies are warning-free.
 GitHub Actions checks formatting and builds/tests on Ubuntu 22.04 and Windows
 Server 2025 with Visual Studio 2026. Ubuntu additionally runs static analysis.
 vcpkg is pinned; hosted images can change. The runner is included in the updated
-workflow, whose remote result has not been verified. Commits use Conventional Commits.
+workflow, which passes on both platforms. Commits use Conventional Commits.
 
 ## Completion and scope
 
 The core challenge passes the reference dataset's historical accuracy benchmark
-in offline evaluation. Remaining verification is the new runner on Ubuntu and
-updated GitHub CI.
+in offline evaluation on Windows and Ubuntu. The 41-test suite and GitHub CI
+checks pass. The offline implementation and verification are complete.
 
 The original simulator entry point depends on the old uWebSockets API and is
 not configured by the modern build. No simulator end-to-end result is claimed.
@@ -234,7 +236,7 @@ frameworks are deferred. They are not prerequisites for the offline result.
 | 3. Reproducible workflow | Established on Windows and Ubuntu |
 | 4. Dataset parser | Complete |
 | 5. Core EKF | Implemented; 40 component tests passed on both platforms |
-| 6. Offline evaluation | Implemented; Windows benchmark passed; Ubuntu/CI pending |
+| 6. Offline evaluation | Complete; Windows/Ubuntu benchmark and 41 tests pass; CI green |
 
 ## Attribution
 
