@@ -200,7 +200,7 @@ bit-for-bit identical floating-point output.
 | 0. Project definition | Scope, architecture, boundaries, README | Complete |
 | 1. Modernization baseline | Copy the Udacity starter sources unchanged into src; verify the starting point | Complete: all nine copied files verified byte-for-byte against the local starter on Windows |
 | 2. First tested component | Review references; migrate and test RMSE; establish library and test targets | Complete: documented RMSE contract, library/test targets, nine passing tests on Windows and Ubuntu |
-| 3. Reproducible development workflow | Shared presets, formatting, static analysis, Ubuntu/Windows CI | Shared formatting configuration and clang-format 23.1.3 verified on both platforms; presets, analysis and CI pending |
+| 3. Reproducible development workflow | Shared presets, formatting, static analysis, Ubuntu/Windows CI | Shared formatting configuration and clang-format 23.1.3 verified on both platforms; Windows configure/build/test presets verified; Ubuntu preset validation, analysis and CI pending |
 | 4. Measurements and dataset input | Types, parser, validation, provenance | Planned |
 | 5. Core estimation | Initialization, prediction, lidar update, radar update | Planned |
 | 6. Offline tracking application | Replay, configuration, artifacts, regression criteria | Planned |
@@ -259,7 +259,7 @@ starting point for development, not a runnable application. RMSE tests run indep
 
 The outer modern repository excludes the three local reference directories,
 `data/`, `build/`, `outputs/`, `CMakeUserPresets.json`, and `.vscode/`. Empty directories
-are not tracked by Git. No shared `CMakePresets.json` exists yet.
+are not tracked by Git. Shared settings are tracked in `CMakePresets.json`; machine-specific overrides belong in ignored `CMakeUserPresets.json`.
 Local reference directories are maintained separately on Windows and Ubuntu;
 they are not supplied by cloning the modern repository.
 
@@ -328,6 +328,73 @@ The Linux simulator launches successfully on Ubuntu.
 The Windows simulator crashes during startup; further troubleshooting is outside
 this milestone. Simulator integration will be verified on Ubuntu separately from
 native Windows core, offline application, and test support.
+
+### CMake presets
+
+`CMakePresets.json` provides shared `windows-debug` and `ubuntu-debug`
+configure, build, and test presets. Format version 3 supports CMake 3.22;
+the Windows preset additionally requires a CMake version supporting the
+Visual Studio 18 2026 generator and that toolchain installed.
+
+Create an ignored `CMakeUserPresets.json` in the project root on each machine.
+For Windows:
+
+```json
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "windows-local",
+            "inherits": "windows-debug",
+            "environment": {
+                "VCPKG_ROOT": "C:/Users/epile/tools/vcpkg"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "windows-local",
+            "inherits": "windows-debug",
+            "configurePreset": "windows-local"
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "windows-local",
+            "inherits": "windows-debug",
+            "configurePreset": "windows-local"
+        }
+    ]
+}
+```
+
+Adjust `VCPKG_ROOT` to the local installation. On Ubuntu, replace every
+`windows-local` with `ubuntu-local`, every `windows-debug` with `ubuntu-debug`,
+and set `VCPKG_ROOT` to `$penv{HOME}/tools/vcpkg`. Keep this local file out of Git.
+Local build and test presets inherit the local configure environment, including
+vcpkg's path, so automatic CMake regeneration uses the same toolchain settings.
+
+Run from the project root, continuing only after each command succeeds:
+
+```powershell
+cmake --preset windows-local
+cmake --build --preset windows-local
+ctest --preset windows-local
+```
+
+This Windows Debug preset workflow passes all nine RMSE tests. The equivalent
+Ubuntu preset workflow is pending validation (the explicit Ubuntu commands
+above already passed):
+
+```bash
+cmake --preset ubuntu-local
+cmake --build --preset ubuntu-local
+ctest --preset ubuntu-local
+```
+
+Presets reuse `build/windows` and `build/ubuntu-debug`. Test presets display
+failure output and fail when no tests are discovered. Shared presets can also
+be used directly with `VCPKG_ROOT` supplied by the calling environment.
 
 ## Source formatting
 

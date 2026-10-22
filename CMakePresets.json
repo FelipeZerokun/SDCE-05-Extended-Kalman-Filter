@@ -40,5 +40,40 @@
                 "rhs": "Windows"
             }
         }
+    ],
+    "buildPresets": [
+        {
+            "name": "ubuntu-debug",
+            "configurePreset": "ubuntu-debug",
+            "jobs": 2
+        },
+        {
+            "name": "windows-debug",
+            "configurePreset": "windows-debug",
+            "configuration": "Debug"
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "ubuntu-debug",
+            "configurePreset": "ubuntu-debug",
+            "output": {
+                "outputOnFailure": true
+            },
+            "execution": {
+                "noTestsAction": "error"
+            }
+        },
+        {
+            "name": "windows-debug",
+            "configurePreset": "windows-debug",
+            "configuration": "Debug",
+            "output": {
+                "outputOnFailure": true
+            },
+            "execution": {
+                "noTestsAction": "error"
+            }
+        }
     ]
 }
