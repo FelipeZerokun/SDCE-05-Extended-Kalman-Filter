@@ -1,0 +1,18 @@
+# Local reference material
+/legacy/
+/simulator/
+/udacity_baseline/
+
+# Generated artifacts
+/build/
+/outputs/
+
+# Personal configuration
+/CMakeUserPresets.json
+/.vscode/
+
+# Sensor data
+/data/
+
+# Personal documentation
+/docs/sensor-fusion-ekf-reference.pdf

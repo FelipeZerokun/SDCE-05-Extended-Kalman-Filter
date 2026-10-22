@@ -1,83 +1,105 @@
 #include "tools.h"
-#include <iostream>
 
-using Eigen::VectorXd;
+#include <cmath>
+#include <cstddef>
+#include <stdexcept>
+
 using Eigen::MatrixXd;
+using Eigen::VectorXd;
 using std::vector;
-using std::cout;
-using std::endl;
 
 Tools::Tools() {}
 
 Tools::~Tools() {}
 
 VectorXd Tools::CalculateRMSE(const vector<VectorXd> &estimations,
-                              const vector<VectorXd> &ground_truth)
-{
-  /**
-   * TODO: Calculate the RMSE here.
-   */
+                              const vector<VectorXd> &ground_truth) {
 
-  VectorXd rmse(4);
-  rmse << 0,0,0,0;
-  // First, I'll check that the estimations are not 0
-  //and the size is equal to the ground_truth vector size
-  if (estimations.size() != ground_truth.size() || estimations.size() == 0)
-  {
-    cout << "Invalid estimation or ground_truth data" << endl;
-    return rmse;
+  if (estimations.empty() || ground_truth.empty()) {
+    throw std::invalid_argument("RMSE requires nonempty input sequences");
   }
 
-  // Now, I will accumulate the residuals
-  for (int i=0; i < estimations.size(); ++i)
-  {
-    // calculate the residual in each iteration
-    VectorXd residual = estimations[i] - ground_truth[i];
-    // coefficient-wise multiplication to make the residual a matrix
-    residual = residual.array()*residual.array();
-    // add up the current iteration residual to the rmse variable
-    rmse += residual;
+  if (estimations.size() != ground_truth.size()) {
+    throw std::invalid_argument("RMSE requires equal estimation and ground-truth sequence lengths");
   }
 
-  // After adding the residuals, I will calculate the mean
-  rmse = rmse/estimations.size();
+  for (std::size_t i = 0; i < estimations.size(); ++i) {
+    if (estimations[i].size() != 4 || ground_truth[i].size() != 4) {
+      throw std::invalid_argument("RMSE requires four components in every state");
+    }
 
-  // and finally the square root
-  rmse = rmse.array().sqrt();
+    if (!estimations[i].allFinite() || !ground_truth[i].allFinite()) {
+      throw std::invalid_argument("RMSE requires finite input components");
+    }
+  }
 
-  // Now, I will return the RMSE
+  VectorXd squared_error_sum = VectorXd::Zero(4);
+
+  for (std::size_t i = 0; i < estimations.size(); ++i) {
+    const VectorXd residual = estimations[i] - ground_truth[i];
+
+    if (!residual.allFinite()) {
+      throw std::overflow_error("RMSE residual overflow: non-finite result encountered");
+    }
+
+    const VectorXd squared_error = residual.array().square().matrix();
+
+    if (!squared_error.allFinite()) {
+      throw std::overflow_error("RMSE squared error overflow: non-finite result encountered");
+    }
+
+    squared_error_sum += squared_error;
+
+    if (!squared_error_sum.allFinite()) {
+      throw std::overflow_error("RMSE accumulation overflow: non-finite result encountered");
+    }
+  }
+
+  const VectorXd mean_squared_error = squared_error_sum / static_cast<double>(estimations.size());
+
+  const VectorXd rmse = mean_squared_error.array().sqrt().matrix();
+
+  if (!rmse.allFinite()) {
+    throw std::overflow_error("RMSE final calculation overflow: non-finite result encountered");
+  }
+
   return rmse;
 }
 
-MatrixXd Tools::CalculateJacobian(const VectorXd& x_state)
-{
-  /**
-   * TODO:
-   * Calculate a Jacobian here.
-   */
-  // First I need the x_state
-  MatrixXd Hj(3,4);
-  // recover state parameters
-  float px = x_state(0);
-  float py = x_state(1);
-  float vx = x_state(2);
-  float vy = x_state(3);
-
-  // pre-compute repetitive terms in the equations
-  float term1 = px*px + py*py; // (px^2 + py^2)
-  float term2 = sqrt(term1);// (px^2 + py^2)^1/2
-  float term3 = term1*term2; // (px^2 + py^2)^3/2
-
-  // check division by zero
-  if (fabs(term2) < 0.0001)
-  {
-    cout << "CalculateJacobian () - Error - Division by Zero" << endl;
-    return Hj;
+MatrixXd Tools::CalculateJacobian(const VectorXd &x_state) {
+  if (x_state.size() != 4 || !x_state.allFinite()) {
+    throw std::invalid_argument("Jacobian requires four finite state components");
   }
 
-  // compute the Jacobian matrix
-  Hj << (px/term2), (py/term2), 0, 0,
-        (-py/term1), (px/term1), 0, 0,
-        (py*vx*py - py*vy*px)/term3, (px*vy*px - px*vx*py)/term3, (px/term2), (py/term2);
-  return Hj;
+  const double px = x_state(0);
+  const double py = x_state(1);
+  const double vx = x_state(2);
+  const double vy = x_state(3);
+
+  const double range = std::hypot(px, py);
+
+  if (!std::isfinite(range)) {
+    throw std::overflow_error("Jacobian range is not finite");
+  }
+
+  constexpr double minimum_range = 1e-6;
+  if (range <= minimum_range) {
+    throw std::domain_error("Jacobian is undefined near zero range");
+  }
+
+  const double nx = px / range;
+  const double ny = py / range;
+
+  // Tangential velocity divided by range.
+  const double angular_rate = nx * (vy / range) - ny * (vx / range);
+
+  MatrixXd jacobian(3, 4);
+  jacobian << nx, ny, 0.0, 0.0, -ny / range, nx / range, 0.0, 0.0, -ny * angular_rate,
+      nx * angular_rate, nx, ny;
+
+  if (!jacobian.allFinite()) {
+    throw std::overflow_error("Jacobian calculation produced non-finite values");
+  }
+
+  return jacobian;
 }

@@ -1,0 +1,10 @@
+Checks: >
+  -*,
+  clang-analyzer-*,
+  bugprone-use-after-move,
+  bugprone-sizeof-expression,
+  bugprone-integer-division
+WarningsAsErrors: ''
+HeaderFilterRegex: '(^|/)src/(tools|dataset_parser|dataset_record|measurement_package|FusionEKF|kalman_filter)\.h$'
+InheritParentConfig: false
+FormatStyle: none

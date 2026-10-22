@@ -1,26 +1,81 @@
-project(ExtendedKF)
+cmake_minimum_required(VERSION 3.22)
 
-cmake_minimum_required (VERSION 3.5)
+project(
+    extended_kalman_filter
+    VERSION 0.1.0
+    DESCRIPTION "Lidar and Radar sensor fusion using Extended Kalman Filter"
+    LANGUAGES CXX
+)
 
-add_definitions(-std=c++11)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(CXX_FLAGS "-Wall")
-set(CMAKE_CXX_FLAGS "${CXX_FLAGS}")
+include(CTest)
 
-set(sources src/main.cpp src/tools.cpp src/FusionEKF.cpp src/kalman_filter.cpp src/tools.h src/FusionEKF.h src/kalman_filter.h)
+find_package(Eigen3 CONFIG REQUIRED)
 
+add_library(ekf_core STATIC
+    src/tools.cpp
+    src/dataset_parser.cpp
+    src/FusionEKF.cpp
+    src/kalman_filter.cpp
+)
 
-if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin") 
+target_include_directories(ekf_core PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
 
-include_directories(/usr/local/include)
-include_directories(/usr/local/opt/openssl/include)
-link_directories(/usr/local/lib)
-link_directories(/usr/local/opt/openssl/lib)
-link_directories(/usr/local/Cellar/libuv/1*/lib)
+target_link_libraries(ekf_core PUBLIC
+    Eigen3::Eigen
+)
 
-endif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin") 
+target_compile_features(ekf_core PUBLIC cxx_std_17)
 
+add_executable(ekf_replay apps/ekf_replay.cpp)
+target_link_libraries(ekf_replay PRIVATE ekf_core)
 
-add_executable(ExtendedKF ${sources})
+if(BUILD_TESTING)
+    find_package(Catch2 3 CONFIG REQUIRED)
 
-target_link_libraries(ExtendedKF z ssl uv uWS)
+    add_executable(ekf_tests
+        tests/test_tools.cpp
+        tests/test_dataset_parser.cpp
+        tests/test_FusionEKF.cpp
+        tests/test_kalman_filter.cpp
+    )
+
+    target_link_libraries(ekf_tests PRIVATE
+        ekf_core
+        Catch2::Catch2WithMain
+    )
+
+    include(Catch)
+    catch_discover_tests(ekf_tests)
+
+    add_test(NAME replay_cli
+        COMMAND ${CMAKE_COMMAND}
+            "-DREPLAY=$<TARGET_FILE:ekf_replay>"
+            "-DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/replay-test"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_replay.cmake"
+    )
+endif()
+
+# Apply compiler warnings only to maintained project targets.
+set(ekf_warning_targets ekf_core ekf_replay)
+
+if(BUILD_TESTING)
+    list(APPEND ekf_warning_targets ekf_tests)
+endif()
+
+foreach(target IN LISTS ekf_warning_targets)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /W4)
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(${target} PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+        )
+    endif()
+endforeach()
