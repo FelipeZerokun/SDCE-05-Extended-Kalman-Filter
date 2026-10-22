@@ -17,6 +17,7 @@ find_package(Eigen3 CONFIG REQUIRED)
 
 add_library(ekf_core STATIC
     src/tools.cpp
+    src/dataset_parser.cpp
 )
 
 target_include_directories(ekf_core PUBLIC
@@ -34,6 +35,7 @@ if(BUILD_TESTING)
 
     add_executable(ekf_tests
         tests/test_tools.cpp
+        tests/test_dataset_parser.cpp
     )
 
     target_link_libraries(ekf_tests PRIVATE

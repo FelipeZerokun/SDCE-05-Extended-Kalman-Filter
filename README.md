@@ -8,7 +8,10 @@ velocity by combining asynchronous lidar and radar measurements. Its focus is
 a reusable C++ estimator, reproducible builds, automated verification, and
 quantitative evaluation, with an optional connection to the Udacity simulator.
 
-**Current stage: Milestone 3 complete — reproducible workflow and CI validated.**
+**Current stage: dataset parser implemented; EKF implementation is next.**
+The Windows Debug suite passes 20 cases: nine RMSE and eleven parser cases.
+Formatting passes with clang-format 23.1.3. The expanded Ubuntu tests and CI
+workflow await execution; the results below for nine tests refer to Milestone 3.
 The project began with nine unchanged Udacity starter files. RMSE is now
 implemented in `src/tools.cpp`, with its contract documented in `src/tools.h`.
 The starter structure is retained; the legacy solution remains a reference.
@@ -17,7 +20,7 @@ The `ekf_core` library and `ekf_tests` executable configure and build in Debug
 mode on Windows and Ubuntu. All nine RMSE test cases pass through CTest on both
 platforms; the recorded Ubuntu run completed in 0.09 seconds.
 Formatting, Windows/Ubuntu builds and tests, and Ubuntu static analysis pass in
-GitHub Actions. Milestone 4 (measurements and dataset input) is next. Full
+GitHub Actions for the previous RMSE-only suite. Full
 filtering, offline replay, and simulator integration remain planned.
 
 **Development platforms:** Ubuntu is the primary development environment.
@@ -96,14 +99,36 @@ Only sensor observations and timestamps enter the estimator. Ground truth is
 kept separate and used exclusively for evaluation. Yaw and yaw rate are not
 part of this project's estimated state.
 
-Original timestamps will be stored as integers and elapsed time converted to
-seconds. Timestamp units, coordinate conventions, dataset provenance, and
-actual available row formats will be verified against the reference files
-before implementing the parser.
+`ParseDatasetLine` returns a `DatasetRecord`: the unchanged Udacity
+`MeasurementPackage` plus separate ground truth `[px, py, vx, vy]`.
+Lidar requires exactly 10 fields and radar 11, including the sensor tag.
+The abbreviated 8/9-field format is not supported.
 
-Input validation will cover unknown sensor types, malformed rows, non-finite
-values, invalid ranges, and timestamp ordering. Policies for duplicate
-timestamps and near-zero radar range must be explicit and tested.
+Timestamps are nonnegative integer microseconds fitting in `long long`, including
+zero and its maximum value. The original implementation converts time differences
+to seconds by dividing by 1,000,000. Numeric fields must parse completely as finite
+doubles; scientific notation and whitespace separators are accepted. Parsing uses
+the classic locale. Radar range must be nonnegative; negative bearing and radial
+velocity are valid. Yaw and yaw rate are validated but not stored.
+
+Invalid rows throw `std::invalid_argument`. Empty rows are rejected. The parser
+accepts zero radar range; singularity handling belongs to the EKF. Timestamp
+ordering, duplicate-timestamp policy, and file/line diagnostics belong to replay
+and estimator integration, not this single-row parser.
+
+The local reference dataset matches the copy in
+`udacity_baseline/CarND-Extended-Kalman-Filter-Project/data/` byte-for-byte:
+500 rows, comprising 250 lidar and 250 radar observations. SHA-256:
+
+```text
+9879be6c2530833197f1a649cd0118deaf4de86cf90f9b07cda5a01493bdf2e5
+```
+
+The source is the Udacity starter project linked under Attribution. Data and
+starter reference folders remain local and ignored. Tests use synthetic rows
+and do not require those folders. Measurement conventions are metres for
+position/range, metres per second for velocity, and radians for angles.
+The parser preserves values without angle normalization.
 
 ## Architecture
 
@@ -203,7 +228,7 @@ bit-for-bit identical floating-point output.
 | 1. Modernization baseline | Copy the Udacity starter sources unchanged into src; verify the starting point | Complete: all nine copied files verified byte-for-byte against the local starter on Windows |
 | 2. First tested component | Review references; migrate and test RMSE; establish library and test targets | Complete: documented RMSE contract, library/test targets, nine passing tests on Windows and Ubuntu |
 | 3. Reproducible development workflow | Shared presets, formatting, static analysis, Ubuntu/Windows CI | Complete: shared presets, pinned formatting, compiler warnings, Ubuntu static analysis, and successful Windows/Ubuntu CI |
-| 4. Measurements and dataset input | Types, parser, validation, provenance | Planned |
+| 4. Measurements and dataset input | Types, parser, validation, provenance | Implemented; 20 Windows tests pass; expanded Ubuntu/CI verification pending |
 | 5. Core estimation | Initialization, prediction, lidar update, radar update | Planned |
 | 6. Offline tracking application | Replay, configuration, artifacts, regression criteria | Planned |
 | 7. Evaluation and analysis | Sensor-mode comparisons, plots, error analysis | Planned |
@@ -231,9 +256,9 @@ The modernization branch, `modern/cpp`, contains:
 
 ```text
 include/ekf/        Empty modern public-header directory
-src/               Starter structure with RMSE implementation and documented contract
+src/               Starter structure, RMSE, dataset parser and record type
 apps/              Empty modern application directory
-tests/             test_tools.cpp: nine RMSE test cases
+tests/             Nine RMSE and eleven dataset parser test cases
 docs/              Local reference documentation
 CMakeLists.txt     C++17, ekf_core library, optional ekf_tests and CTest discovery
 vcpkg.json         Eigen and Catch2 dependencies with a registry baseline
@@ -418,7 +443,7 @@ unchanged.
 The initial analysis workflow uses Ubuntu clang-tidy 14.0.0. The shared
 `.clang-tidy` enables Clang Static Analyzer checks and targeted checks for
 use-after-move, suspicious sizeof expressions, and integer division.
-Diagnostics from the analyzed source files and `src/tools.h` are in scope;
+Diagnostics from analyzed sources and tools, dataset, and measurement headers are in scope;
 dependency-header diagnostics are filtered. The configuration does not treat
 warnings as errors or inherit parent configurations.
 
@@ -427,11 +452,11 @@ supplies the compiler arguments, definitions, and include paths:
 
 ```bash
 cmake --preset ubuntu-local
-clang-tidy -p build/ubuntu-debug src/tools.cpp tests/test_tools.cpp
+clang-tidy -p build/ubuntu-debug src/tools.cpp src/dataset_parser.cpp tests/test_tools.cpp tests/test_dataset_parser.cpp
 echo "clang-tidy exit code: $?"
 ```
 
-Analysis completes with exit code 0 and no displayed project-code findings
+The earlier RMSE-only analysis completed with exit code 0 and no displayed project-code findings
 under this check selection. The recorded run suppressed 20 warnings in
 non-user code. Suppressed diagnostics are not evidence that dependencies are
 warning-free. No automatic fixes are applied. Native Windows clang-tidy
@@ -476,7 +501,7 @@ Windows PowerShell, from the project root:
 ```powershell
 $toolBin = uv tool dir --bin
 & "$toolBin/clang-format.exe" --version
-& "$toolBin/clang-format.exe" --style=file --dry-run --Werror src/tools.cpp src/tools.h tests/test_tools.cpp
+& "$toolBin/clang-format.exe" --style=file --dry-run --Werror src/tools.cpp src/tools.h src/dataset_parser.cpp src/dataset_parser.h src/dataset_record.h tests/test_tools.cpp tests/test_dataset_parser.cpp
 ```
 
 Ubuntu, from the project root:
@@ -484,7 +509,7 @@ Ubuntu, from the project root:
 ```bash
 tool_bin="$(uv tool dir --bin)"
 "$tool_bin/clang-format" --version
-"$tool_bin/clang-format" --style=file --dry-run --Werror src/tools.cpp src/tools.h tests/test_tools.cpp
+"$tool_bin/clang-format" --style=file --dry-run --Werror src/tools.cpp src/tools.h src/dataset_parser.cpp src/dataset_parser.h src/dataset_record.h tests/test_tools.cpp tests/test_dataset_parser.cpp
 ```
 
 Both platforms pass the formatting check with version 23.1.3. Replace
@@ -512,7 +537,7 @@ All three jobs completed successfully: Formatting, Build and test
 analysis step also passed.
 
 - Formatting: Ubuntu 22.04 with uv 0.13.3 and clang-format 23.1.3; checks the
-  three maintained C++ files without editing them.
+  maintained RMSE and parser sources, headers, and tests without editing them.
 - Build and test: Ubuntu 22.04 with GCC 11 and Windows Server 2025 with Visual
   Studio 2026, using the shared Debug presets and CTest.
 - Static analysis: clang-tidy 14 in the Ubuntu build job, using the generated
