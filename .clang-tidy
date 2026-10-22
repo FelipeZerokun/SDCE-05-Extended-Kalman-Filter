@@ -1,0 +1,10 @@
+Checks: >
+  -*,
+  clang-analyzer-*,
+  bugprone-use-after-move,
+  bugprone-sizeof-expression,
+  bugprone-integer-division
+WarningsAsErrors: ''
+HeaderFilterRegex: '(^|/)src/tools\.h$'
+InheritParentConfig: false
+FormatStyle: none
