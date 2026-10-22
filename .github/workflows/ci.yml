@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [main, modern/cpp]
+  pull_request:
+    branches: [main, modern/cpp]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  formatting:
+    name: Formatting
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: "0.13.3"
+          enable-cache: false
+
+      - name: Check C++ formatting
+        run: |
+          uvx --from clang-format==23.1.3 clang-format --version
+          uvx --from clang-format==23.1.3 clang-format --style=file --dry-run --Werror src/tools.cpp src/tools.h tests/test_tools.cpp
+
+  build-test:
+    name: Build and test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            preset: ubuntu-debug
+          - os: windows-2025-vs2026
+            preset: windows-debug
+
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/.ci-vcpkg
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Check out pinned vcpkg
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: microsoft/vcpkg
+          ref: 469a0504e4a6ebf6173d1c0f51a7fa34c382fd43
+          path: .ci-vcpkg
+          fetch-depth: 0
+
+      - name: Install Ubuntu build tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++-11 ninja-build curl zip unzip tar pkg-config clang-tidy-14 libstdc++-12-dev
+      - name: Bootstrap vcpkg on Ubuntu
+        if: runner.os == 'Linux'
+        run: |
+          "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
+
+      - name: Bootstrap vcpkg on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & "$env:VCPKG_ROOT/bootstrap-vcpkg.bat" -disableMetrics
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Configure Ubuntu
+        if: runner.os == 'Linux'
+        run: cmake --preset ubuntu-debug -DCMAKE_CXX_COMPILER=g++-11
+
+      - name: Configure Windows
+        if: runner.os == 'Windows'
+        run: cmake --preset windows-debug
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+
+      - name: Test
+        run: ctest --preset ${{ matrix.preset }}
+
+      - name: Run static analysis
+        if: runner.os == 'Linux'
+        run: |
+          clang-tidy-14 --version
+          clang-tidy-14 -p build/ubuntu-debug --warnings-as-errors='*' src/tools.cpp tests/test_tools.cpp

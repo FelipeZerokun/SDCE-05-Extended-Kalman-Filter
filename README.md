@@ -200,7 +200,7 @@ bit-for-bit identical floating-point output.
 | 0. Project definition | Scope, architecture, boundaries, README | Complete |
 | 1. Modernization baseline | Copy the Udacity starter sources unchanged into src; verify the starting point | Complete: all nine copied files verified byte-for-byte against the local starter on Windows |
 | 2. First tested component | Review references; migrate and test RMSE; establish library and test targets | Complete: documented RMSE contract, library/test targets, nine passing tests on Windows and Ubuntu |
-| 3. Reproducible development workflow | Shared presets, formatting, static analysis, Ubuntu/Windows CI | Shared formatting configuration and clang-format 23.1.3 verified on both platforms; configure/build/test presets verified on both platforms; MSVC and GCC warning builds validated; initial Ubuntu clang-tidy analysis validated; CI pending |
+| 3. Reproducible development workflow | Shared presets, formatting, static analysis, Ubuntu/Windows CI | Shared formatting configuration and clang-format 23.1.3 verified on both platforms; configure/build/test presets verified on both platforms; MSVC and GCC warning builds validated; initial Ubuntu clang-tidy analysis validated; CI workflow implemented, first hosted run pending |
 | 4. Measurements and dataset input | Types, parser, validation, provenance | Planned |
 | 5. Core estimation | Initialization, prediction, lidar update, radar update | Planned |
 | 6. Offline tracking application | Replay, configuration, artifacts, regression criteria | Planned |
@@ -496,8 +496,30 @@ inside the directory printed by `uv tool dir --bin` (`clang-format.exe` on
 Windows, `clang-format` on Ubuntu). This selects the pinned formatter instead
 of the extension-bundled or system version. Local paths may differ.
 
-CI enforcement remains planned. `.gitattributes` normalizes C++ source files
+The CI workflow includes formatting enforcement; its first hosted run is pending.
+`.gitattributes` normalizes C++ source files
 to LF line endings.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` defines checks for pushes to `main` and `modern/cpp`,
+pull requests targeting those branches, and manual dispatch. The workflow is
+implemented but has not yet completed a verified GitHub-hosted run.
+
+- Formatting: Ubuntu 22.04 with uv 0.13.3 and clang-format 23.1.3; checks the
+  three maintained C++ files without editing them.
+- Build and test: Ubuntu 22.04 with GCC 11 and Windows Server 2025 with Visual
+  Studio 2026, using the shared Debug presets and CTest.
+- Static analysis: clang-tidy 14 in the Ubuntu build job, using the generated
+  compilation database and the shared check selection. Displayed warnings are
+  treated as errors in CI; the local configuration remains advisory.
+
+Each build job checks out and bootstraps vcpkg at the manifest baseline commit
+`469a0504e4a6ebf6173d1c0f51a7fa34c382fd43`. `VCPKG_ROOT` is supplied by the
+workflow; local user presets and reference directories are not required.
+The workflow has read-only repository permissions and no dependency cache yet.
+Hosted runner images and OS packages can update; these jobs do not promise
+bit-for-bit reproducible toolchain images.
 
 ## Scope and working approach
 
