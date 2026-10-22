@@ -8,7 +8,7 @@ velocity by combining asynchronous lidar and radar measurements. Its focus is
 a reusable C++ estimator, reproducible builds, automated verification, and
 quantitative evaluation, with an optional connection to the Udacity simulator.
 
-**Current stage: Milestone 2 complete — RMSE tested on Windows and Ubuntu.**
+**Current stage: Milestone 3 complete — reproducible workflow and CI validated.**
 The project began with nine unchanged Udacity starter files. RMSE is now
 implemented in `src/tools.cpp`, with its contract documented in `src/tools.h`.
 The starter structure is retained; the legacy solution remains a reference.
@@ -16,7 +16,9 @@ The starter structure is retained; the legacy solution remains a reference.
 The `ekf_core` library and `ekf_tests` executable configure and build in Debug
 mode on Windows and Ubuntu. All nine RMSE test cases pass through CTest on both
 platforms; the recorded Ubuntu run completed in 0.09 seconds.
-Full filtering, offline replay, simulator integration, and CI remain planned.
+Formatting, Windows/Ubuntu builds and tests, and Ubuntu static analysis pass in
+GitHub Actions. Milestone 4 (measurements and dataset input) is next. Full
+filtering, offline replay, and simulator integration remain planned.
 
 **Development platforms:** Ubuntu is the primary development environment.
 The core library, offline application, and automated tests are intended to
@@ -200,7 +202,7 @@ bit-for-bit identical floating-point output.
 | 0. Project definition | Scope, architecture, boundaries, README | Complete |
 | 1. Modernization baseline | Copy the Udacity starter sources unchanged into src; verify the starting point | Complete: all nine copied files verified byte-for-byte against the local starter on Windows |
 | 2. First tested component | Review references; migrate and test RMSE; establish library and test targets | Complete: documented RMSE contract, library/test targets, nine passing tests on Windows and Ubuntu |
-| 3. Reproducible development workflow | Shared presets, formatting, static analysis, Ubuntu/Windows CI | Shared formatting configuration and clang-format 23.1.3 verified on both platforms; configure/build/test presets verified on both platforms; MSVC and GCC warning builds validated; initial Ubuntu clang-tidy analysis validated; CI workflow implemented, first hosted run pending |
+| 3. Reproducible development workflow | Shared presets, formatting, static analysis, Ubuntu/Windows CI | Complete: shared presets, pinned formatting, compiler warnings, Ubuntu static analysis, and successful Windows/Ubuntu CI |
 | 4. Measurements and dataset input | Types, parser, validation, provenance | Planned |
 | 5. Core estimation | Initialization, prediction, lidar update, radar update | Planned |
 | 6. Offline tracking application | Replay, configuration, artifacts, regression criteria | Planned |
@@ -496,7 +498,7 @@ inside the directory printed by `uv tool dir --bin` (`clang-format.exe` on
 Windows, `clang-format` on Ubuntu). This selects the pinned formatter instead
 of the extension-bundled or system version. Local paths may differ.
 
-The CI workflow includes formatting enforcement; its first hosted run is pending.
+The CI formatting check passes with clang-format 23.1.3.
 `.gitattributes` normalizes C++ source files
 to LF line endings.
 
@@ -504,7 +506,10 @@ to LF line endings.
 
 `.github/workflows/ci.yml` defines checks for pushes to `main` and `modern/cpp`,
 pull requests targeting those branches, and manual dispatch. The workflow is
-implemented but has not yet completed a verified GitHub-hosted run.
+validated by [successful run 39803892018](https://github.com/FelipeZerokun/SDCE-05-Extended-Kalman-Filter/actions/runs/39803892018).
+All three jobs completed successfully: Formatting, Build and test
+(ubuntu-22.04), and Build and test (windows-2025-vs2026). The Ubuntu static
+analysis step also passed.
 
 - Formatting: Ubuntu 22.04 with uv 0.13.3 and clang-format 23.1.3; checks the
   three maintained C++ files without editing them.
