@@ -65,6 +65,6 @@ VectorXd Tools::CalculateRMSE(const vector<VectorXd> &estimations,
   return rmse;
 }
 
-MatrixXd Tools::CalculateJacobian(const VectorXd &x_state) {
+MatrixXd Tools::CalculateJacobian(const VectorXd &) {
   throw std::logic_error("CalculateJacobian is not implemented yet");
 }

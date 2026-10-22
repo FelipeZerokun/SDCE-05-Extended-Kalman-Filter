@@ -200,7 +200,7 @@ bit-for-bit identical floating-point output.
 | 0. Project definition | Scope, architecture, boundaries, README | Complete |
 | 1. Modernization baseline | Copy the Udacity starter sources unchanged into src; verify the starting point | Complete: all nine copied files verified byte-for-byte against the local starter on Windows |
 | 2. First tested component | Review references; migrate and test RMSE; establish library and test targets | Complete: documented RMSE contract, library/test targets, nine passing tests on Windows and Ubuntu |
-| 3. Reproducible development workflow | Shared presets, formatting, static analysis, Ubuntu/Windows CI | Shared formatting configuration and clang-format 23.1.3 verified on both platforms; configure/build/test presets verified on both platforms; compiler warnings, analysis and CI pending |
+| 3. Reproducible development workflow | Shared presets, formatting, static analysis, Ubuntu/Windows CI | Shared formatting configuration and clang-format 23.1.3 verified on both platforms; configure/build/test presets verified on both platforms; MSVC warnings validated; GCC warning validation, static analysis and CI pending |
 | 4. Measurements and dataset input | Types, parser, validation, provenance | Planned |
 | 5. Core estimation | Initialization, prediction, lidar update, radar update | Planned |
 | 6. Offline tracking application | Replay, configuration, artifacts, regression criteria | Planned |
@@ -397,6 +397,19 @@ uses Ninja; a build reporting `no work to do` is already up to date. An existing
 build directory must use the same generator as its preset. Test presets display
 failure output and fail when no tests are discovered. Shared presets can also
 be used directly with `VCPKG_ROOT` supplied by the calling environment.
+
+## Compiler warnings
+
+Warning options apply privately to `ekf_core` and, when `BUILD_TESTING` is
+enabled, `ekf_tests`: MSVC uses `/W4`; GCC uses `-Wall -Wextra -Wpedantic`.
+Dependency targets are not modified, and warning options are not propagated
+to consumers. Warnings are not currently treated as errors.
+
+The Windows Debug build completes without warnings and all nine RMSE tests
+pass. GCC validation with these newly enabled warning flags is pending.
+The unimplemented Jacobian definition deliberately omits its parameter name
+until the implementation needs it; its interface and throwing behavior remain
+unchanged.
 
 ## Source formatting
 

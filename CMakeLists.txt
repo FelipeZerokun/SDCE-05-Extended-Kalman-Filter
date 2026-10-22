@@ -44,3 +44,22 @@ if(BUILD_TESTING)
     include(Catch)
     catch_discover_tests(ekf_tests)
 endif()
+
+# Apply compiler warnings only to maintained project targets.
+set(ekf_warning_targets ekf_core)
+
+if(BUILD_TESTING)
+    list(APPEND ekf_warning_targets ekf_tests)
+endif()
+
+foreach(target IN LISTS ekf_warning_targets)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /W4)
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(${target} PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+        )
+    endif()
+endforeach()
