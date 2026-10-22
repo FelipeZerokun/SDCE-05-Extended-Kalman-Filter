@@ -200,7 +200,7 @@ bit-for-bit identical floating-point output.
 | 0. Project definition | Scope, architecture, boundaries, README | Complete |
 | 1. Modernization baseline | Copy the Udacity starter sources unchanged into src; verify the starting point | Complete: all nine copied files verified byte-for-byte against the local starter on Windows |
 | 2. First tested component | Review references; migrate and test RMSE; establish library and test targets | Complete: documented RMSE contract, library/test targets, nine passing tests on Windows and Ubuntu |
-| 3. Reproducible development workflow | Shared presets, formatting, static analysis, Ubuntu/Windows CI | Shared formatting configuration and clang-format 23.1.3 verified on both platforms; configure/build/test presets verified on both platforms; MSVC and GCC warning builds validated; static analysis and CI pending |
+| 3. Reproducible development workflow | Shared presets, formatting, static analysis, Ubuntu/Windows CI | Shared formatting configuration and clang-format 23.1.3 verified on both platforms; configure/build/test presets verified on both platforms; MSVC and GCC warning builds validated; initial Ubuntu clang-tidy analysis validated; CI pending |
 | 4. Measurements and dataset input | Types, parser, validation, provenance | Planned |
 | 5. Core estimation | Initialization, prediction, lidar update, radar update | Planned |
 | 6. Offline tracking application | Replay, configuration, artifacts, regression criteria | Planned |
@@ -410,6 +410,46 @@ all nine RMSE tests pass on both platforms with these warning options enabled.
 The unimplemented Jacobian definition deliberately omits its parameter name
 until the implementation needs it; its interface and throwing behavior remain
 unchanged.
+
+## Static analysis
+
+The initial analysis workflow uses Ubuntu clang-tidy 14.0.0. The shared
+`.clang-tidy` enables Clang Static Analyzer checks and targeted checks for
+use-after-move, suspicious sizeof expressions, and integer division.
+Diagnostics from the analyzed source files and `src/tools.h` are in scope;
+dependency-header diagnostics are filtered. The configuration does not treat
+warnings as errors or inherit parent configurations.
+
+The Ubuntu preset exports `build/ubuntu-debug/compile_commands.json`, which
+supplies the compiler arguments, definitions, and include paths:
+
+```bash
+cmake --preset ubuntu-local
+clang-tidy -p build/ubuntu-debug src/tools.cpp tests/test_tools.cpp
+echo "clang-tidy exit code: $?"
+```
+
+Analysis completes with exit code 0 and no displayed project-code findings
+under this check selection. The recorded run suppressed 20 warnings in
+non-user code. Suppressed diagnostics are not evidence that dependencies are
+warning-free. No automatic fixes are applied. Native Windows clang-tidy
+execution has not been validated; Windows compilation and tests remain separate
+checks.
+
+On the Ubuntu development machine, Clang 14 detects GCC 12 for standard-library
+header discovery even though the project builds with GCC 11. Missing GCC 12
+C++ headers initially caused a `cmath` not found error. Installing the matching
+development package resolved that environment issue:
+
+```bash
+sudo apt update
+sudo apt install libstdc++-12-dev
+```
+
+This installation does not change the project's selected GCC compiler. The
+analysis uses GCC 12 standard-library headers on this machine. Other machines
+need development headers matching the GCC installation detected by Clang;
+`--extra-arg=-v` shows that selection and the include search paths.
 
 ## Source formatting
 
