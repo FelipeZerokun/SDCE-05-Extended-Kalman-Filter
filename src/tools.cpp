@@ -1,5 +1,6 @@
 #include "tools.h"
 
+#include <cmath>
 #include <cstddef>
 #include <stdexcept>
 
@@ -65,6 +66,40 @@ VectorXd Tools::CalculateRMSE(const vector<VectorXd> &estimations,
   return rmse;
 }
 
-MatrixXd Tools::CalculateJacobian(const VectorXd &) {
-  throw std::logic_error("CalculateJacobian is not implemented yet");
+MatrixXd Tools::CalculateJacobian(const VectorXd &x_state) {
+  if (x_state.size() != 4 || !x_state.allFinite()) {
+    throw std::invalid_argument("Jacobian requires four finite state components");
+  }
+
+  const double px = x_state(0);
+  const double py = x_state(1);
+  const double vx = x_state(2);
+  const double vy = x_state(3);
+
+  const double range = std::hypot(px, py);
+
+  if (!std::isfinite(range)) {
+    throw std::overflow_error("Jacobian range is not finite");
+  }
+
+  constexpr double minimum_range = 1e-6;
+  if (range <= minimum_range) {
+    throw std::domain_error("Jacobian is undefined near zero range");
+  }
+
+  const double nx = px / range;
+  const double ny = py / range;
+
+  // Tangential velocity divided by range.
+  const double angular_rate = nx * (vy / range) - ny * (vx / range);
+
+  MatrixXd jacobian(3, 4);
+  jacobian << nx, ny, 0.0, 0.0, -ny / range, nx / range, 0.0, 0.0, -ny * angular_rate,
+      nx * angular_rate, nx, ny;
+
+  if (!jacobian.allFinite()) {
+    throw std::overflow_error("Jacobian calculation produced non-finite values");
+  }
+
+  return jacobian;
 }

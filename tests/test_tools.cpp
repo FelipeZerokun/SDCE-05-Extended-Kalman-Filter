@@ -202,3 +202,108 @@ TEST_CASE("RMSE rejects arithmetic overflow", "[rmse]") {
     REQUIRE_THROWS_AS(tools.CalculateRMSE(estimates, ground_truth), std::overflow_error);
   }
 }
+
+TEST_CASE("Radar Jacobian matches a hand-calculated state", "[jacobian]") {
+  Tools tools;
+  const Eigen::Vector4d state(3.0, 4.0, 2.0, -1.0);
+
+  const Eigen::MatrixXd jacobian = tools.CalculateJacobian(state);
+
+  REQUIRE(jacobian.rows() == 3);
+  REQUIRE(jacobian.cols() == 4);
+
+  Eigen::Matrix<double, 3, 4> expected;
+  expected << 0.6, 0.8, 0.0, 0.0, -0.16, 0.12, 0.0, 0.0, 0.352, -0.264, 0.6, 0.8;
+
+  REQUIRE(jacobian.isApprox(expected, 1e-12));
+}
+
+TEST_CASE("Radar Jacobian supports position on the y axis", "[jacobian]") {
+  Tools tools;
+  const Eigen::Vector4d state(0.0, 2.0, 3.0, 4.0);
+
+  const Eigen::MatrixXd jacobian = tools.CalculateJacobian(state);
+
+  REQUIRE(jacobian.rows() == 3);
+  REQUIRE(jacobian.cols() == 4);
+
+  Eigen::Matrix<double, 3, 4> expected;
+  expected << 0.0, 1.0, 0.0, 0.0, -0.5, 0.0, 0.0, 0.0, 1.5, 0.0, 0.0, 1.0;
+
+  REQUIRE(jacobian.isApprox(expected, 1e-12));
+}
+
+TEST_CASE("Radar Jacobian rejects singular and near-origin states", "[jacobian]") {
+  Tools tools;
+
+  SECTION("At the origin") {
+    const Eigen::Vector4d state(0.0, 0.0, 1.0, 2.0);
+    REQUIRE_THROWS_AS(tools.CalculateJacobian(state), std::domain_error);
+  }
+
+  SECTION("Below the minimum range") {
+    const Eigen::Vector4d state(0.0, 5e-7, 1.0, 2.0);
+    REQUIRE_THROWS_AS(tools.CalculateJacobian(state), std::domain_error);
+  }
+
+  SECTION("Exactly at the minimum range") {
+    const Eigen::Vector4d state(1e-6, 0.0, 1.0, 2.0);
+    REQUIRE_THROWS_AS(tools.CalculateJacobian(state), std::domain_error);
+  }
+
+  SECTION("Above the minimum range") {
+    const Eigen::Vector4d state(2e-6, 0.0, 0.0, 0.0);
+    const auto jacobian = tools.CalculateJacobian(state);
+
+    REQUIRE(jacobian.allFinite());
+    REQUIRE_THAT(jacobian(1, 1), Catch::Matchers::WithinAbs(500000.0, 1e-6));
+  }
+}
+
+TEST_CASE("Radar Jacobian agrees with numerical derivatives", "[jacobian]") {
+  Tools tools;
+
+  const auto radar_measurement = [](const Eigen::Vector4d &state) {
+    const double range = std::hypot(state(0), state(1));
+
+    return Eigen::Vector3d(range, std::atan2(state(1), state(0)),
+                           (state(0) * state(2) + state(1) * state(3)) / range);
+  };
+
+  const std::vector<Eigen::Vector4d> states{
+      Eigen::Vector4d(3.0, 4.0, 2.0, -1.0),
+      Eigen::Vector4d(-4.0, 3.0, -2.0, 5.0),
+      Eigen::Vector4d(2.0, -3.0, 0.5, -4.0),
+      Eigen::Vector4d(-3.0, -4.0, 1.0, 2.0),
+  };
+
+  constexpr double step = 1e-5;
+  constexpr double tolerance = 1e-7;
+
+  for (const auto &state : states) {
+    CAPTURE(state(0), state(1), state(2), state(3));
+
+    const Eigen::MatrixXd analytical = tools.CalculateJacobian(state);
+    Eigen::Matrix<double, 3, 4> numerical;
+
+    for (Eigen::Index column = 0; column < 4; ++column) {
+      Eigen::Vector4d plus = state;
+      Eigen::Vector4d minus = state;
+      plus(column) += step;
+      minus(column) -= step;
+
+      numerical.col(column) = (radar_measurement(plus) - radar_measurement(minus)) / (2.0 * step);
+    }
+
+    REQUIRE(analytical.rows() == 3);
+    REQUIRE(analytical.cols() == 4);
+
+    for (Eigen::Index row = 0; row < 3; ++row) {
+      for (Eigen::Index column = 0; column < 4; ++column) {
+        CAPTURE(row, column);
+        REQUIRE_THAT(analytical(row, column),
+                     Catch::Matchers::WithinAbs(numerical(row, column), tolerance));
+      }
+    }
+  }
+}

@@ -34,7 +34,10 @@ public:
                                 const std::vector<Eigen::VectorXd> &ground_truth);
 
   /**
-   * A helper method to calculate Jacobians.
+   * Returns the 3x4 radar measurement Jacobian for [px, py, vx, vy].
+   * Throws std::invalid_argument for incorrect dimensions or non-finite inputs.
+   * Throws std::domain_error when range is at or below 1e-6 metres.
+   * Throws std::overflow_error for non-finite range or calculated entries.
    */
   Eigen::MatrixXd CalculateJacobian(const Eigen::VectorXd &x_state);
 };
