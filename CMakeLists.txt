@@ -32,6 +32,9 @@ target_link_libraries(ekf_core PUBLIC
 
 target_compile_features(ekf_core PUBLIC cxx_std_17)
 
+add_executable(ekf_replay apps/ekf_replay.cpp)
+target_link_libraries(ekf_replay PRIVATE ekf_core)
+
 if(BUILD_TESTING)
     find_package(Catch2 3 CONFIG REQUIRED)
 
@@ -49,10 +52,17 @@ if(BUILD_TESTING)
 
     include(Catch)
     catch_discover_tests(ekf_tests)
+
+    add_test(NAME replay_cli
+        COMMAND ${CMAKE_COMMAND}
+            "-DREPLAY=$<TARGET_FILE:ekf_replay>"
+            "-DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/replay-test"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_replay.cmake"
+    )
 endif()
 
 # Apply compiler warnings only to maintained project targets.
-set(ekf_warning_targets ekf_core)
+set(ekf_warning_targets ekf_core ekf_replay)
 
 if(BUILD_TESTING)
     list(APPEND ekf_warning_targets ekf_tests)

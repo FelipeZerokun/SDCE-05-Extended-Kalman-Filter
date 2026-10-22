@@ -1,574 +1,246 @@
 # Extended Kalman Filter — C++
 
-An incremental modernization of the Extended Kalman Filter project from
-Udacity's Self-Driving Car Engineer Nanodegree.
+A C++17 implementation of Udacity's lidar/radar sensor-fusion challenge, based on
+the original starter structure, with CMake, Catch2, vcpkg, clang-format,
+clang-tidy, and cross-platform CI.
 
-The project will estimate a moving object's two-dimensional position and
-velocity by combining asynchronous lidar and radar measurements. Its focus is
-a reusable C++ estimator, reproducible builds, automated verification, and
-quantitative evaluation, with an optional connection to the Udacity simulator.
+**The core EKF and offline evaluation are implemented.** The supplied dataset
+passes the historical RMSE benchmark on Windows. Simulator integration is not
+part of the modern build.
 
-**Current stage: dataset parser implemented; EKF implementation is next.**
-The Windows Debug suite passes 20 cases: nine RMSE and eleven parser cases.
-Formatting passes with clang-format 23.1.3. The expanded Ubuntu tests and CI
-workflow await execution; the results below for nine tests refer to Milestone 3.
-The project began with nine unchanged Udacity starter files. RMSE is now
-implemented in `src/tools.cpp`, with its contract documented in `src/tools.h`.
-The starter structure is retained; the legacy solution remains a reference.
+## Results
 
-The `ekf_core` library and `ekf_tests` executable configure and build in Debug
-mode on Windows and Ubuntu. All nine RMSE test cases pass through CTest on both
-platforms; the recorded Ubuntu run completed in 0.09 seconds.
-Formatting, Windows/Ubuntu builds and tests, and Ubuntu static analysis pass in
-GitHub Actions for the previous RMSE-only suite. Full
-filtering, offline replay, and simulator integration remain planned.
+Windows Debug evaluation on 2026-10-23, using all 500 observations
+(250 lidar, 250 radar), including the initial estimate:
 
-**Development platforms:** Ubuntu is the primary development environment.
-The core library, offline application, and automated tests are intended to
-build and run on both Ubuntu and Windows. Platform support will be claimed only
-after verification. Simulator compatibility is tracked separately.
+| Component | RMSE | Benchmark maximum | Result |
+| --- | ---: | ---: | --- |
+| px (m) | 0.097226 | 0.11 | Pass |
+| py (m) | 0.085376 | 0.11 | Pass |
+| vx (m/s) | 0.450855 | 0.52 | Pass |
+| vy (m/s) | 0.439588 | 0.52 | Pass |
 
-## Goal
+These are historical Dataset 1 benchmark values, not a formal submission
+approval. The original rubric page could not be retrieved during evaluation.
+The executable compares unrounded results.
 
-Turn the original coursework into a maintainable sensor-fusion project that
-another developer can build, test, understand, and evaluate.
+The 40 core/parser tests passed on Windows and Ubuntu; Ubuntu clang-tidy
+returned 0 with dependency diagnostics suppressed. The runner adds one CTest
+integration test for mixed-sensor replay, malformed rows, empty input, and
+benchmark failure. All 41 tests pass on Windows. The new runner's Ubuntu
+verification and updated GitHub CI run are pending.
 
-The modernization will retain the original problem and reference data while
-improving architecture, numerical reliability, dependency management, testing,
-and documentation. Repeating the starter-code exercise is not the objective.
+## Build and run
 
-## Planned capabilities
+Requirements: C++17, CMake 3.22+, and vcpkg. Ubuntu presets use Ninja. Windows
+presets require Visual Studio Build Tools 2026 and a compatible CMake version.
+Verified development toolchains: MSVC 19.51/CMake 4.4.3 on Windows and
+GCC 11/CMake 3.22.1 on Ubuntu 22.04.
 
-- A reusable C++ library for initialization, prediction, lidar updates, radar
-  updates, and explicit reset.
-- An offline command-line application that replays timestamped measurements
-  without requiring Unity or a network connection.
-- Validated parsing with clear diagnostics for malformed or unsupported input.
-- Exported estimates, component-wise RMSE, and reproducible run metadata.
-- Lidar-only, radar-only, and fused evaluation modes.
-- Trajectory and error plots for comparing estimates with ground truth.
-- A separate adapter for the original simulator's communication protocol.
-- Automated mathematical, regression, and integration checks.
+The manifest supplies Eigen and Catch2 at vcpkg baseline
+469a0504e4a6ebf6173d1c0f51a7fa34c382fd43.
 
-## Estimation model
+Windows PowerShell:
 
-The state is `[px, py, vx, vy]`: Cartesian position in metres and velocity
-in metres per second. The baseline uses a constant-velocity motion model with
-process noise representing unmodelled acceleration.
+~~~powershell
+$env:VCPKG_ROOT = "$env:USERPROFILE/tools/vcpkg"
+cmake --preset windows-debug
+cmake --build --preset windows-debug
+ctest --preset windows-debug
+.\build\windows\Debug\ekf_replay.exe data/obj_pose-laser-radar-synthetic-input.txt --check-rmse
+~~~
 
-| Sensor | Observation | Update |
-| --- | --- | --- |
-| Lidar | Cartesian position `[px, py]` | Linear Kalman filter |
-| Radar | Range, bearing, and radial velocity `[rho, phi, rhodot]` | Extended Kalman filter |
+Ubuntu:
 
-The first accepted measurement initializes the state, covariance, and timestamp.
-Subsequent measurements determine the elapsed time, update the transition and
-process covariance matrices, trigger prediction, and apply the sensor update.
+~~~bash
+export VCPKG_ROOT="$HOME/tools/vcpkg"
+cmake --preset ubuntu-debug
+cmake --build --preset ubuntu-debug
+ctest --preset ubuntu-debug
+./build/ubuntu-debug/ekf_replay data/obj_pose-laser-radar-synthetic-input.txt --check-rmse
+~~~
 
-Radar position is converted from polar to Cartesian coordinates for
-initialization. A single radial-velocity measurement does not uniquely determine
-both Cartesian velocity components. Initial velocity and covariance will be
-documented design choices.
+Existing windows-local and ubuntu-local presets remain supported. Their ignored
+CMakeUserPresets.json inherits shared presets and supplies local VCPKG_ROOT
+values. Local build/test presets must point to the local configure preset.
+VS Code settings are also ignored; use ms-vscode.cmake-tools as the C/C++
+configuration provider.
 
-The radar innovation uses the nonlinear measurement prediction `z - h(x)`.
-Its bearing residual is normalized across the angular wrap boundary. The
-Jacobian is evaluated at the predicted state for the radar update.
+If vcpkg cannot find the baseline, fetch history before configuring:
 
-The baseline retains the supplied noise settings:
+~~~bash
+git -C "$VCPKG_ROOT" fetch origin
+~~~
 
-| Setting | Value |
-| --- | --- |
-| Lidar measurement covariance | `diag(0.0225, 0.0225)` |
-| Radar measurement covariance | `diag(0.09, 0.0009, 0.09)` |
-| Acceleration noise variances | `noise_ax = 9`, `noise_ay = 9` |
+Do not change generators in an existing build directory. For the course's Make
+workflow, use a separate directory (not independently verified for the runner):
 
-Parameter tuning is not required for the baseline. Any later experiment must
-record its changes and compare against the unchanged baseline.
+~~~bash
+cmake -S . -B build/ubuntu-make -G "Unix Makefiles" \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
+cmake --build build/ubuntu-make --parallel 2
+ctest --test-dir build/ubuntu-make --output-on-failure
+~~~
 
-## Data contract
+## Offline runner
 
-The initial reference dataset is
-`obj_pose-laser-radar-synthetic-input.txt`. Each row represents one measurement:
+~~~text
+ekf_replay <dataset.txt> [--check-rmse]
+~~~
 
-```text
-L px_measured py_measured timestamp px_gt py_gt vx_gt vy_gt yaw_gt yawrate_gt
-R rho_measured phi_measured rhodot_measured timestamp px_gt py_gt vx_gt vy_gt yaw_gt yawrate_gt
-```
+Rows are processed in order. Only measurements enter FusionEKF; ground truth
+is used afterward for RMSE. Every observation contributes one estimate,
+including initialization. The runner prints counts and RMSE in [px, py, vx, vy]
+order and does not write output files.
 
-Only sensor observations and timestamps enter the estimator. Ground truth is
-kept separate and used exclusively for evaluation. Yaw and yaw rate are not
-part of this project's estimated state.
+- Success returns 0.
+- With --check-rmse, values exceeding [0.11, 0.11, 0.52, 0.52] return 2.
+  This benchmark is intended for the reference dataset, not arbitrary trajectories.
+- Usage, file, parsing, filtering, or evaluation errors return 1.
+- Invalid rows or rejected measurements stop replay with a file/line diagnostic.
+  Blank rows are rejected; nothing is silently skipped.
 
-`ParseDatasetLine` returns a `DatasetRecord`: the unchanged Udacity
-`MeasurementPackage` plus separate ground truth `[px, py, vx, vy]`.
-Lidar requires exactly 10 fields and radar 11, including the sensor tag.
-The abbreviated 8/9-field format is not supported.
+## Dataset and provenance
 
-Timestamps are nonnegative integer microseconds fitting in `long long`, including
-zero and its maximum value. The original implementation converts time differences
-to seconds by dividing by 1,000,000. Numeric fields must parse completely as finite
-doubles; scientific notation and whitespace separators are accepted. Parsing uses
-the classic locale. Radar range must be nonnegative; negative bearing and radial
-velocity are valid. Yaw and yaw rate are validated but not stored.
+Place obj_pose-laser-radar-synthetic-input.txt from the
+[Udacity starter data directory](https://github.com/udacity/CarND-Extended-Kalman-Filter-Project/tree/master/data)
+in local data/. The verified copy matches the local
+udacity_baseline/CarND-Extended-Kalman-Filter-Project/data/ copy byte-for-byte.
+SHA-256:
 
-Invalid rows throw `std::invalid_argument`. Empty rows are rejected. The parser
-accepts zero radar range; singularity handling belongs to the EKF. Timestamp
-ordering, duplicate-timestamp policy, and file/line diagnostics belong to replay
-and estimator integration, not this single-row parser.
-
-The local reference dataset matches the copy in
-`udacity_baseline/CarND-Extended-Kalman-Filter-Project/data/` byte-for-byte:
-500 rows, comprising 250 lidar and 250 radar observations. SHA-256:
-
-```text
+~~~text
 9879be6c2530833197f1a649cd0118deaf4de86cf90f9b07cda5a01493bdf2e5
-```
+~~~
 
-The source is the Udacity starter project linked under Attribution. Data and
-starter reference folders remain local and ignored. Tests use synthetic rows
-and do not require those folders. Measurement conventions are metres for
-position/range, metres per second for velocity, and radians for angles.
-The parser preserves values without angle normalization.
+Data/reference folders are ignored and not supplied by cloning this repository.
+Automated tests use synthetic rows and need no downloaded dataset.
 
-## Architecture
+Accepted rows:
 
-| Component | Responsibility |
+~~~text
+L px py timestamp gt_px gt_py gt_vx gt_vy gt_yaw gt_yawrate
+R rho phi rhodot timestamp gt_px gt_py gt_vx gt_vy gt_yaw gt_yawrate
+~~~
+
+Lidar requires 10 fields and radar 11, including the sensor tag. Abbreviated
+8/9-field rows are unsupported. Timestamps are nonnegative integer microseconds
+fitting in long long. Numeric fields must parse completely as finite doubles;
+scientific notation and whitespace separators are accepted using the classic locale.
+Position/range use metres, velocities metres/second, and angles radians.
+Radar range must be nonnegative; negative bearing/radial velocity are valid.
+Yaw and yaw rate are validated but not stored. DatasetRecord keeps ground truth
+separate from MeasurementPackage.
+
+## Estimator behavior
+
+The state is [px, py, vx, vy], with a constant-velocity motion model.
+
+- Lidar initializes Cartesian position directly; radar converts range/bearing.
+  Initial velocity is zero and covariance is diag(1, 1, 1000, 1000).
+- Elapsed time determines F and Q. Acceleration noise variances remain
+  noise_ax = noise_ay = 9.
+- Measurement covariance is diag(0.0225, 0.0225) for lidar and
+  diag(0.09, 0.0009, 0.09) for radar.
+- Radar evaluates the Jacobian at the predicted state and normalizes bearing
+  innovation to [-pi, pi]. Corrections use an LDLT solve and Joseph covariance form.
+- Equal timestamps allow correction without motion. Earlier timestamps are
+  rejected; zero is valid.
+- Radar correction/Jacobian evaluation rejects predicted ranges at or below
+  1e-6 metres. Initialization at the origin is allowed.
+- Rejection preserves the accepted estimate and timestamp.
+
+The original public KalmanFilter matrix interface is retained. Direct callers
+must supply consistent dimensions and valid covariance matrices.
+FusionEKF::ProcessMeasurement is the tested high-level entry point.
+
+RMSE rejects empty/mismatched sequences, incorrect state dimensions, and
+non-finite values. Non-finite arithmetic throws. Direct squared-error accumulation
+can overflow for extreme values even when a scaled algorithm could compute RMSE.
+
+## Structure
+
+| File or directory | Responsibility |
 | --- | --- |
-| Estimation library | State, covariance, motion and measurement models, filtering lifecycle |
-| Input adapters | Convert dataset rows or simulator messages into validated measurements |
-| Offline application | Configure and replay a run, coordinate evaluation, write artifacts |
-| Evaluation | Align estimates with ground truth and calculate metrics |
-| Simulator adapter | Handle connections, protocol messages, and run resets |
-| Analysis tools | Produce plots and comparisons from exported results |
-
-The estimation library must not depend on Unity, network transport, plotting,
-or ground truth. Offline replay and simulator integration will use the same
-estimation interfaces.
-
-The simulator is a client; the C++ adapter is its server. Incoming messages carry
-`sensor_measurement`. Responses contain `estimate_x`, `estimate_y`, `rmse_x`,
-`rmse_y`, `rmse_vx`, and `rmse_vy`. Compatibility includes the actual message
-framing, not only these field names.
-
-A new run must reset estimator state, timestamps, and evaluation history
-together. Reconnection and simulator restart behavior will be defined and
-verified during integration.
-
-## Development tools and platform strategy
-
-| Area | Planned approach |
-| --- | --- |
-| Build | Target-based CMake, with documented presets and out-of-source builds |
-| C++ dependencies | vcpkg manifest mode with a recorded registry baseline; Eigen |
-| C++ tests | Catch2 v3-compatible API with CTest; ekf_tests target implemented |
-| Formatting and analysis | clang-format, clang-tidy, and compiler warnings |
-| Runtime checks | Sanitizer-enabled checks where the selected toolchain supports them |
-| Continuous integration | GitHub Actions builds and tests on Ubuntu and Windows |
-| Optional Python analysis | uv for dependencies; pytest, Ruff, and mypy for maintained Python code |
-
-C++17 is required, with compiler extensions disabled; CMake 3.22 is the minimum.
-The Ubuntu development environment uses Ubuntu 22.04.5 LTS, GCC/G++ 11.4.0, CMake 3.22.1,
-clang-tidy/LLVM 14, and uv 0.13.3. Project formatting uses clang-format 23.1.3 via uv. GCC 12.3.0 is also installed
-but is not selected. Python tooling will be introduced when analysis requires
-it; no Python project is needed for this milestone.
-
-Ubuntu is the first development target. Windows must have a documented native
-build and test workflow; WSL2 alone will not count as native Windows validation.
-Paths and application interfaces must not assume a particular shell or machine.
-CMake must retain a Make-compatible build path for the original course workflow,
-while allowing appropriate generators on Windows.
-
-Docker is optional. It will be introduced only if it solves a concrete
-reproducibility or deployment need. Building and testing the estimator must not
-require a graphical desktop or simulator installation.
-
-## Verification and evaluation
-
-Verification will include:
-
-- Small analytical examples for prediction and measurement updates.
-- Jacobian checks against numerical derivatives away from singularities.
-- Angle-wrap, near-zero-range, initialization, and reset behavior.
-- Invalid input and timestamp-policy tests.
-- Finite state values and covariance symmetry and positive semidefiniteness
-  within documented numerical tolerances.
-- Dataset replay regression tests with fixed configuration and explicit
-  tolerances, including comparisons across supported platforms.
-- Offline application integration tests and simulator protocol checks.
-
-Numerical design will prefer solving linear systems to explicitly inverting
-matrices and will document the covariance-update strategy.
-
-Evaluation will report separate RMSE values for `px`, `py`, `vx`, and `vy`,
-along with sample counts and the evaluation interval. Sensor-mode comparisons
-must define a common scoring timeline and initialization policy; comparing
-metrics over unrelated subsets would be misleading.
-
-Each recorded experiment should identify the source revision, dataset
-fingerprint, configuration, toolchain, sensor mode, and relevant dependency
-versions. Results should include estimates, metrics, and trajectory/error plots.
-Existing run artifacts should be protected from accidental overwrite.
-
-The legacy implementation is a comparison reference, not an unquestioned
-correctness oracle. The original rubric's thresholds may be retained as
-historical benchmarks once verified. Modern numerical acceptance thresholds
-will be documented before regression tests are finalized.
-
-**Results:** all nine RMSE test cases pass in Debug mode on Windows and Ubuntu.
-The recorded Ubuntu run completed in 0.09 seconds. No full-estimator dataset
-evaluation has been performed. Numerical
-agreement across platforms will use tolerances rather than a promise of
-bit-for-bit identical floating-point output.
-
-## Milestones and acceptance criteria
-
-| Milestone | Scope | Status |
-| --- | --- | --- |
-| 0. Project definition | Scope, architecture, boundaries, README | Complete |
-| 1. Modernization baseline | Copy the Udacity starter sources unchanged into src; verify the starting point | Complete: all nine copied files verified byte-for-byte against the local starter on Windows |
-| 2. First tested component | Review references; migrate and test RMSE; establish library and test targets | Complete: documented RMSE contract, library/test targets, nine passing tests on Windows and Ubuntu |
-| 3. Reproducible development workflow | Shared presets, formatting, static analysis, Ubuntu/Windows CI | Complete: shared presets, pinned formatting, compiler warnings, Ubuntu static analysis, and successful Windows/Ubuntu CI |
-| 4. Measurements and dataset input | Types, parser, validation, provenance | Implemented; 20 Windows tests pass; expanded Ubuntu/CI verification pending |
-| 5. Core estimation | Initialization, prediction, lidar update, radar update | Planned |
-| 6. Offline tracking application | Replay, configuration, artifacts, regression criteria | Planned |
-| 7. Evaluation and analysis | Sensor-mode comparisons, plots, error analysis | Planned |
-| 8. Simulator integration and release | Adapter, restart behavior, documentation and final verification | Planned |
-
-Ubuntu environment setup is a completed prerequisite.
-The modernization starts from the Udacity starter, with the completed legacy
-implementation retained as a reference for review and selective reuse. The
-bundled Eigen directory was not copied; Eigen is supplied through vcpkg.
-The original source baseline was verified before edits. RMSE builds and tests
-pass on Windows and Ubuntu.
-
-Milestone 2 requires a documented RMSE contract and failure behavior, a reusable
-library and test executable that compile and link, and passing CTest-discovered
-checks for analytical examples and invalid inputs. These tests must run without
-the simulator or full estimator.
-
-The simulator adapter is optional for users of the library and offline
-application, but remains a planned project deliverable. Simulator failures must
-not block progress on the estimator or its automated validation.
-
-## Current project structure
-
-The modernization branch, `modern/cpp`, contains:
-
-```text
-include/ekf/        Empty modern public-header directory
-src/               Starter structure, RMSE, dataset parser and record type
-apps/              Empty modern application directory
-tests/             Nine RMSE and eleven dataset parser test cases
-docs/              Local reference documentation
-CMakeLists.txt     C++17, ekf_core library, optional ekf_tests and CTest discovery
-vcpkg.json         Eigen and Catch2 dependencies with a registry baseline
-legacy/            Original completed implementation (ignored)
-udacity_baseline/  Udacity starter templates and reference data (ignored)
-simulator/         Local simulator distributions (ignored)
-```
-
-The copied starter files retain their original responsibilities:
-
-| Files in `src/` | Starting responsibility |
-| --- | --- |
-| `main.cpp` | Simulator transport and parsing; invokes filtering and RMSE |
-| `FusionEKF.cpp`, `FusionEKF.h` | Filter initialization and prediction/update orchestration |
-| `kalman_filter.cpp`, `kalman_filter.h` | State and covariance storage; prediction and update interfaces/stubs |
-| `tools.cpp`, `tools.h` | Implemented RMSE; Jacobian placeholder throws std::logic_error |
-| `measurement_package.h` | Sensor measurement representation |
-| `json.hpp` | Bundled JSON dependency used by the starter simulator entry point |
-
-The starter's bundled Eigen directory and old build artifacts were not copied.
-Eigen is provided through the existing vcpkg/CMake configuration.
-`main.cpp` still depends on the old uWebSockets API; that dependency is not
-configured in the modern build. The current source snapshot is therefore a
-starting point for development, not a runnable application. RMSE tests run independently of simulator dependencies.
-
-The outer modern repository excludes the three local reference directories,
-`data/`, `build/`, `outputs/`, `CMakeUserPresets.json`, and `.vscode/`. Empty directories
-are not tracked by Git. Shared settings are tracked in `CMakePresets.json`; machine-specific overrides belong in ignored `CMakeUserPresets.json`.
-Local reference directories are maintained separately on Windows and Ubuntu;
-they are not supplied by cloning the modern repository.
-
-## Setup and usage
-
-vcpkg is installed outside the Ubuntu repository at `$HOME/tools/vcpkg`.
-The manifest records baseline `469a0504e4a6ebf6173d1c0f51a7fa34c382fd43`.
-The existing manifest uses `"version": "0.1.0"`.
-
-Install dependencies and configure the Ubuntu Debug build:
-
-```sh
-cmake -S . -B build/ubuntu-debug \
-    -DCMAKE_BUILD_TYPE=Debug \
-    -DCMAKE_TOOLCHAIN_FILE="$HOME/tools/vcpkg/scripts/buildsystems/vcpkg.cmake"
-```
-
-VS Code CMake Tools can use the same build directory and vcpkg toolchain.
-
-Build and run the tests on Ubuntu:
-
-```sh
-cmake --build build/ubuntu-debug --parallel 2
-ctest --test-dir build/ubuntu-debug --output-on-failure
-```
-
-All nine Ubuntu tests pass, with a recorded total runtime of 0.09 seconds. This validates
-the current RMSE targets only; full estimator and application support remain planned.
-
-The following native Windows PowerShell workflow was validated with CMake
-4.4.3, Visual Studio Build Tools 2026, MSVC 19.51.36256.0, and Windows SDK
-10.0.26100.0. vcpkg resolved Catch2 3.16.0 and Eigen 5.0.1.
-Adjust the toolchain path if vcpkg is installed elsewhere.
-
-```powershell
-cmake -S . -B build/windows -G "Visual Studio 18 2026" -A x64 -DCMAKE_TOOLCHAIN_FILE="$env:USERPROFILE/tools/vcpkg/scripts/buildsystems/vcpkg.cmake" -DBUILD_TESTING=ON
-cmake --build build/windows --config Debug
-ctest --test-dir build/windows -C Debug --output-on-failure
-```
-
-If the local vcpkg checkout lacks the pinned baseline commit, fetch its remote
-history with `git -C "$env:USERPROFILE/tools/vcpkg" fetch origin`, then retry
-configuration without changing the manifest baseline.
-
-### Implemented RMSE contract and test coverage
-
-`Tools::CalculateRMSE` accepts constant references to paired sequences of
-four-component dynamic Eigen vectors in `[px, py, vx, vy]` order. The caller
-aligns observations. It returns component-wise RMSE in metres and metres/second.
-Empty inputs, unequal sequence lengths, incorrect state dimensions, and
-non-finite components throw `std::invalid_argument`. Non-finite arithmetic
-intermediates or results throw `std::overflow_error`.
-
-Direct squared-error accumulation can overflow even when the mathematical RMSE
-is representable; tiny squares can underflow to zero. Fixed-size vectors were
-considered, but the starter interface is retained with explicit dimension checks.
-
-Nine test cases cover identical sequences, one observation, opposite-signed
-errors, a hand-calculated multi-observation example, empty sequences, unequal
-lengths, incorrect state dimensions, NaN and both infinities in either input,
-and subtraction/squaring/accumulation overflow from finite inputs. Analytical
-comparisons use an absolute tolerance of `1e-12`, except exact zero for identical
-inputs. This validates RMSE only, not the unfinished filtering implementation.
-
-The Linux simulator launches successfully on Ubuntu.
-The Windows simulator crashes during startup; further troubleshooting is outside
-this milestone. Simulator integration will be verified on Ubuntu separately from
-native Windows core, offline application, and test support.
-
-### CMake presets
-
-`CMakePresets.json` provides shared `windows-debug` and `ubuntu-debug`
-configure, build, and test presets. Ubuntu uses Ninja (required on PATH);
-Windows uses the Visual Studio generator. Format version 3 supports CMake 3.22;
-the Windows preset additionally requires a CMake version supporting the
-Visual Studio 18 2026 generator and that toolchain installed.
-
-Create an ignored `CMakeUserPresets.json` in the project root on each machine.
-For Windows:
-
-```json
-{
-    "version": 3,
-    "configurePresets": [
-        {
-            "name": "windows-local",
-            "inherits": "windows-debug",
-            "environment": {
-                "VCPKG_ROOT": "C:/Users/epile/tools/vcpkg"
-            }
-        }
-    ],
-    "buildPresets": [
-        {
-            "name": "windows-local",
-            "inherits": "windows-debug",
-            "configurePreset": "windows-local"
-        }
-    ],
-    "testPresets": [
-        {
-            "name": "windows-local",
-            "inherits": "windows-debug",
-            "configurePreset": "windows-local"
-        }
-    ]
-}
-```
-
-Adjust `VCPKG_ROOT` to the local installation. On Ubuntu, replace every
-`windows-local` with `ubuntu-local`, every `windows-debug` with `ubuntu-debug`,
-and set `VCPKG_ROOT` to `$penv{HOME}/tools/vcpkg`. Keep this local file out of Git.
-Local build and test presets inherit the local configure environment, including
-vcpkg's path, so automatic CMake regeneration uses the same toolchain settings.
-
-Run from the project root, continuing only after each command succeeds:
-
-```powershell
-cmake --preset windows-local
-cmake --build --preset windows-local
-ctest --preset windows-local
-```
-
-This Windows Debug preset workflow passes all nine RMSE tests. The equivalent
-Ubuntu Debug preset workflow also configures successfully and passes all nine tests:
-
-```bash
-cmake --preset ubuntu-local
-cmake --build --preset ubuntu-local
-ctest --preset ubuntu-local
-```
-
-Presets reuse `build/windows` and `build/ubuntu-debug`. The Ubuntu directory
-uses Ninja; a build reporting `no work to do` is already up to date. An existing
-build directory must use the same generator as its preset. Test presets display
-failure output and fail when no tests are discovered. Shared presets can also
-be used directly with `VCPKG_ROOT` supplied by the calling environment.
-
-## Compiler warnings
-
-Warning options apply privately to `ekf_core` and, when `BUILD_TESTING` is
-enabled, `ekf_tests`: MSVC uses `/W4`; GCC uses `-Wall -Wextra -Wpedantic`.
-Dependency targets are not modified, and warning options are not propagated
-to consumers. Warnings are not currently treated as errors.
-
-Windows (MSVC) and Ubuntu (GCC) Debug builds complete without warnings, and
-all nine RMSE tests pass on both platforms with these warning options enabled.
-The unimplemented Jacobian definition deliberately omits its parameter name
-until the implementation needs it; its interface and throwing behavior remain
-unchanged.
-
-## Static analysis
-
-The initial analysis workflow uses Ubuntu clang-tidy 14.0.0. The shared
-`.clang-tidy` enables Clang Static Analyzer checks and targeted checks for
-use-after-move, suspicious sizeof expressions, and integer division.
-Diagnostics from analyzed sources and tools, dataset, and measurement headers are in scope;
-dependency-header diagnostics are filtered. The configuration does not treat
-warnings as errors or inherit parent configurations.
-
-The Ubuntu preset exports `build/ubuntu-debug/compile_commands.json`, which
-supplies the compiler arguments, definitions, and include paths:
-
-```bash
-cmake --preset ubuntu-local
-clang-tidy -p build/ubuntu-debug src/tools.cpp src/dataset_parser.cpp tests/test_tools.cpp tests/test_dataset_parser.cpp
-echo "clang-tidy exit code: $?"
-```
-
-The earlier RMSE-only analysis completed with exit code 0 and no displayed project-code findings
-under this check selection. The recorded run suppressed 20 warnings in
-non-user code. Suppressed diagnostics are not evidence that dependencies are
-warning-free. No automatic fixes are applied. Native Windows clang-tidy
-execution has not been validated; Windows compilation and tests remain separate
-checks.
-
-On the Ubuntu development machine, Clang 14 detects GCC 12 for standard-library
-header discovery even though the project builds with GCC 11. Missing GCC 12
-C++ headers initially caused a `cmath` not found error. Installing the matching
-development package resolved that environment issue:
-
-```bash
-sudo apt update
-sudo apt install libstdc++-12-dev
-```
-
-This installation does not change the project's selected GCC compiler. The
-analysis uses GCC 12 standard-library headers on this machine. Other machines
-need development headers matching the GCC installation detected by Clang;
-`--extra-arg=-v` shows that selection and the include search paths.
-
-## Source formatting
-
-The shared `.clang-format` uses LLVM style, two-space indentation, a 100-column
-wrapping target, spaces instead of tabs, and regrouped includes. Formatting was
-applied to `src/tools.cpp`, `src/tools.h`, and `tests/test_tools.cpp`. All nine
-Windows Debug tests passed after rebuilding the formatted sources. Legacy, starter-reference, and bundled third-party files were not
-formatted.
-
-The project formatter is **clang-format 23.1.3** on Windows and Ubuntu.
-Install the exact version as an isolated tool using uv (no Python project is
-required). The community-maintained `clang-format` PyPI distribution packages
-LLVM's formatter:
-
-```text
+| src/FusionEKF.cpp | Initialization, timestamps, prediction/update orchestration |
+| src/kalman_filter.cpp | Prediction and shared correction mathematics |
+| src/tools.cpp | RMSE and radar Jacobian |
+| src/dataset_parser.cpp, src/dataset_record.h | Input validation and evaluation reference |
+| apps/ekf_replay.cpp | Offline runner |
+| tests/ | Catch2 tests and CMake runner integration check |
+| src/main.cpp, src/json.hpp | Original simulator entry point/dependency; not built |
+| legacy/, udacity_baseline/, simulator/ | Ignored local reference material |
+| data/, build/, outputs/ | Ignored local/generated material |
+
+The starter's bundled Eigen is not used. The build produces ekf_core, ekf_replay,
+and (with BUILD_TESTING enabled) ekf_tests.
+
+## Quality checks
+
+Formatting uses clang-format 23.1.3, LLVM style, two-space indentation, and a
+100-column target. Install with:
+
+~~~text
 uv tool install "clang-format==23.1.3"
-uv tool dir --bin
-```
+~~~
 
-Windows PowerShell, from the project root:
+PowerShell:
 
-```powershell
-$toolBin = uv tool dir --bin
-& "$toolBin/clang-format.exe" --version
-& "$toolBin/clang-format.exe" --style=file --dry-run --Werror src/tools.cpp src/tools.h src/dataset_parser.cpp src/dataset_parser.h src/dataset_record.h tests/test_tools.cpp tests/test_dataset_parser.cpp
-```
+~~~powershell
+& "$env:USERPROFILE/.local/bin/clang-format.exe" --style=file --dry-run --Werror src/tools.cpp src/tools.h src/dataset_parser.cpp src/dataset_parser.h src/dataset_record.h src/FusionEKF.cpp src/kalman_filter.cpp src/kalman_filter.h apps/ekf_replay.cpp tests/test_tools.cpp tests/test_dataset_parser.cpp tests/test_FusionEKF.cpp tests/test_kalman_filter.cpp
+~~~
 
-Ubuntu, from the project root:
+On Ubuntu use ~/.local/bin/clang-format with the same arguments. Replace
+--dry-run --Werror with -i to format maintained files. Do not format bundled
+JSON or reference copies.
 
-```bash
-tool_bin="$(uv tool dir --bin)"
-"$tool_bin/clang-format" --version
-"$tool_bin/clang-format" --style=file --dry-run --Werror src/tools.cpp src/tools.h src/dataset_parser.cpp src/dataset_parser.h src/dataset_record.h tests/test_tools.cpp tests/test_dataset_parser.cpp
-```
+Compiler warnings are /W4 for MSVC and -Wall -Wextra -Wpedantic for GCC,
+applied to project targets. Ubuntu static analysis uses clang-tidy 14:
 
-Both platforms pass the formatting check with version 23.1.3. Replace
-`--dry-run --Werror` with `-i` to apply formatting to the listed files, then
-review the diff. Keep the file list scoped to maintained project sources;
-do not format bundled dependencies or local reference copies.
+~~~bash
+clang-tidy -p build/ubuntu-debug --warnings-as-errors='*' \
+  src/tools.cpp src/dataset_parser.cpp src/FusionEKF.cpp src/kalman_filter.cpp \
+  apps/ekf_replay.cpp tests/test_tools.cpp tests/test_dataset_parser.cpp \
+  tests/test_FusionEKF.cpp tests/test_kalman_filter.cpp
+~~~
 
-In each machine's ignored `.vscode/settings.json`, set `C_Cpp.formatting` to
-`clangFormat` and `C_Cpp.clang_format_path` to the absolute executable path
-inside the directory printed by `uv tool dir --bin` (`clang-format.exe` on
-Windows, `clang-format` on Ubuntu). This selects the pinned formatter instead
-of the extension-bundled or system version. Local paths may differ.
+On the Ubuntu development machine, Clang 14 selects GCC 12 standard-library
+headers while the build uses GCC 11. Installing libstdc++-12-dev resolved
+the earlier missing cmath diagnostic. Suppressed dependency warnings do not
+mean dependencies are warning-free.
 
-The CI formatting check passes with clang-format 23.1.3.
-`.gitattributes` normalizes C++ source files
-to LF line endings.
+GitHub Actions checks formatting and builds/tests on Ubuntu 22.04 and Windows
+Server 2025 with Visual Studio 2026. Ubuntu additionally runs static analysis.
+vcpkg is pinned; hosted images can change. The runner is included in the updated
+workflow, whose remote result has not been verified. Commits use Conventional Commits.
 
-## Continuous integration
+## Completion and scope
 
-`.github/workflows/ci.yml` defines checks for pushes to `main` and `modern/cpp`,
-pull requests targeting those branches, and manual dispatch. The workflow is
-validated by [successful run 39803892018](https://github.com/FelipeZerokun/SDCE-05-Extended-Kalman-Filter/actions/runs/39803892018).
-All three jobs completed successfully: Formatting, Build and test
-(ubuntu-22.04), and Build and test (windows-2025-vs2026). The Ubuntu static
-analysis step also passed.
+The core challenge passes the reference dataset's historical accuracy benchmark
+in offline evaluation. Remaining verification is the new runner on Ubuntu and
+updated GitHub CI.
 
-- Formatting: Ubuntu 22.04 with uv 0.13.3 and clang-format 23.1.3; checks the
-  maintained RMSE and parser sources, headers, and tests without editing them.
-- Build and test: Ubuntu 22.04 with GCC 11 and Windows Server 2025 with Visual
-  Studio 2026, using the shared Debug presets and CTest.
-- Static analysis: clang-tidy 14 in the Ubuntu build job, using the generated
-  compilation database and the shared check selection. Displayed warnings are
-  treated as errors in CI; the local configuration remains advisory.
+The original simulator entry point depends on the old uWebSockets API and is
+not configured by the modern build. No simulator end-to-end result is claimed.
+If submission requires simulator operation, that adapter needs a separate step.
 
-Each build job checks out and bootstraps vcpkg at the manifest baseline commit
-`469a0504e4a6ebf6173d1c0f51a7fa34c382fd43`. `VCPKG_ROOT` is supplied by the
-workflow; local user presets and reference directories are not required.
-The workflow has read-only repository permissions and no dependency cache yet.
-Hosted runner images and OS packages can update; these jobs do not promise
-bit-for-bit reproducible toolchain images.
+Reset APIs, plots, sensor-mode experiments, configurable tuning, and expanded
+frameworks are deferred. They are not prerequisites for the offline result.
 
-## Scope and working approach
+| Milestone | Status |
+| --- | --- |
+| 1. Starter baseline | Complete |
+| 2. RMSE and tests | Complete |
+| 3. Reproducible workflow | Established on Windows and Ubuntu |
+| 4. Dataset parser | Complete |
+| 5. Core EKF | Implemented; 40 component tests passed on both platforms |
+| 6. Offline evaluation | Implemented; Windows benchmark passed; Ubuntu/CI pending |
 
-- Work proceeds in small, reviewable steps with verification appropriate to each
-  change.
-- The original implementation and Udacity baseline remain reference material.
-  Modernization does not require copying their architecture or bundled build
-  artifacts.
-- Infrastructure must serve correctness, maintainability, or reproducibility.
-- This is an educational tracking system, not a safety-certified automotive
-  component. Multi-object tracking, perception from raw sensor signals, and
-  vehicle control are outside the initial scope.
+## Attribution
 
-## Attribution and licensing
-
-- [Original implementation](https://github.com/FelipeZerokun/SDCE-05-Extended-Kalman-Filter)
-- [Udacity starter project](https://github.com/udacity/CarND-Extended-Kalman-Filter-Project)
-- [Udacity simulator releases](https://github.com/udacity/self-driving-car-sim/releases)
-
-Applicable upstream notices must be preserved when reusing code or data.
-The modern project's license and redistribution permissions for reference
-materials will be reviewed before publication; no new license is asserted here.
+Based on the
+[Udacity starter](https://github.com/udacity/CarND-Extended-Kalman-Filter-Project)
+and completed coursework in local legacy/.
+The [original simulator](https://github.com/udacity/self-driving-car-sim/releases)
+is maintained separately. Applicable upstream notices must be preserved.
+No new license or permission to redistribute course reference material is asserted.
