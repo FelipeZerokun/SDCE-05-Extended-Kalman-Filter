@@ -5,8 +5,10 @@ the original starter structure, with CMake, Catch2, vcpkg, clang-format,
 clang-tidy, and cross-platform CI.
 
 **The core EKF and offline evaluation are implemented.** The supplied dataset
-passes the historical RMSE benchmark on Windows. Simulator integration is not
-part of the modern build.
+passes the historical RMSE benchmark on Windows and Ubuntu. An optional simulator
+server is available; the actual Unity run must be verified on Ubuntu.
+
+For simulator build/run instructions, see [docs/SIMULATOR.md](docs/SIMULATOR.md).
 
 ## Results
 
@@ -169,6 +171,8 @@ can overflow for extreme values even when a scaled algorithm could compute RMSE.
 | src/tools.cpp | RMSE and radar Jacobian |
 | src/dataset_parser.cpp, src/dataset_record.h | Input validation and evaluation reference |
 | apps/ekf_replay.cpp | Offline runner |
+| apps/ekf_simulator.cpp | Optional local WebSocket server on port 4567 |
+| src/simulator_session.cpp, src/simulator_connection.cpp | Simulator protocol, run lifecycle, and transport |
 | tests/ | Catch2 tests and CMake runner integration check |
 | src/main.cpp, src/json.hpp | Original simulator entry point/dependency; not built |
 | legacy/, udacity_baseline/, simulator/ | Ignored local reference material |
@@ -189,7 +193,7 @@ uv tool install "clang-format==23.1.3"
 PowerShell:
 
 ~~~powershell
-& "$env:USERPROFILE/.local/bin/clang-format.exe" --style=file --dry-run --Werror src/tools.cpp src/tools.h src/dataset_parser.cpp src/dataset_parser.h src/dataset_record.h src/FusionEKF.cpp src/kalman_filter.cpp src/kalman_filter.h apps/ekf_replay.cpp tests/test_tools.cpp tests/test_dataset_parser.cpp tests/test_FusionEKF.cpp tests/test_kalman_filter.cpp
+& "$env:USERPROFILE/.local/bin/clang-format.exe" --style=file --dry-run --Werror src/tools.cpp src/tools.h src/dataset_parser.cpp src/dataset_parser.h src/dataset_record.h src/FusionEKF.cpp src/kalman_filter.cpp src/kalman_filter.h apps/ekf_replay.cpp src/simulator_session.cpp src/simulator_session.h src/simulator_connection.cpp src/simulator_connection.h apps/ekf_simulator.cpp tests/test_simulator.cpp tests/test_tools.cpp tests/test_dataset_parser.cpp tests/test_FusionEKF.cpp tests/test_kalman_filter.cpp
 ~~~
 
 On Ubuntu use ~/.local/bin/clang-format with the same arguments. Replace
@@ -197,12 +201,14 @@ On Ubuntu use ~/.local/bin/clang-format with the same arguments. Replace
 JSON or reference copies.
 
 Compiler warnings are /W4 for MSVC and -Wall -Wextra -Wpedantic for GCC,
-applied to project targets. Ubuntu static analysis uses clang-tidy 14:
+applied to project targets. Ubuntu static analysis uses clang-tidy 14. Configure
+with BUILD_SIMULATOR=ON before analyzing the simulator sources:
 
 ~~~bash
 clang-tidy -p build/ubuntu-debug --warnings-as-errors='*' \
   src/tools.cpp src/dataset_parser.cpp src/FusionEKF.cpp src/kalman_filter.cpp \
-  apps/ekf_replay.cpp tests/test_tools.cpp tests/test_dataset_parser.cpp \
+  apps/ekf_replay.cpp src/simulator_session.cpp src/simulator_connection.cpp \
+  apps/ekf_simulator.cpp tests/test_simulator.cpp tests/test_tools.cpp tests/test_dataset_parser.cpp \
   tests/test_FusionEKF.cpp tests/test_kalman_filter.cpp
 ~~~
 
@@ -222,9 +228,12 @@ The core challenge passes the reference dataset's historical accuracy benchmark
 in offline evaluation on Windows and Ubuntu. The 41-test suite and GitHub CI
 checks pass. The offline implementation and verification are complete.
 
-The original simulator entry point depends on the old uWebSockets API and is
-not configured by the modern build. No simulator end-to-end result is claimed.
-If submission requires simulator operation, that adapter needs a separate step.
+The optional simulator target uses Boost.Beast and nlohmann-json through vcpkg.
+Enable it with `cmake --preset ubuntu-local -DBUILD_SIMULATOR=ON`, build and test,
+then run `./build/ubuntu-debug/ekf_simulator` on the same Ubuntu machine as Unity.
+The original `src/main.cpp` remains a protocol reference. The maintained entry
+point is `apps/ekf_simulator.cpp`; no old uWebSockets installation is needed.
+Protocol and loopback WebSocket tests do not replace the final visual Ubuntu run.
 
 Reset APIs, plots, sensor-mode experiments, configurable tuning, and expanded
 frameworks are deferred. They are not prerequisites for the offline result.
@@ -237,6 +246,7 @@ frameworks are deferred. They are not prerequisites for the offline result.
 | 4. Dataset parser | Complete |
 | 5. Core EKF | Implemented; 40 component tests passed on both platforms |
 | 6. Offline evaluation | Complete; Windows/Ubuntu benchmark and 41 tests pass; CI green |
+| 7. Simulator integration | Adapter implemented; actual Ubuntu simulator verification pending |
 
 ## Attribution
 

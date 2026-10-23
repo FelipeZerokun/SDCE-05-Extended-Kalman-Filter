@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, modern/cpp]
+    branches: [main, modern/cpp, feat/simulator-integration]
   pull_request:
     branches: [main, modern/cpp]
   workflow_dispatch:
@@ -28,7 +28,7 @@ jobs:
       - name: Check C++ formatting
         run: |
           uvx --from clang-format==23.1.3 clang-format --version
-          uvx --from clang-format==23.1.3 clang-format --style=file --dry-run --Werror src/tools.cpp src/tools.h src/dataset_parser.cpp src/dataset_parser.h src/dataset_record.h tests/test_tools.cpp tests/test_dataset_parser.cpp src/FusionEKF.cpp src/kalman_filter.cpp tests/test_FusionEKF.cpp tests/test_kalman_filter.cpp src/kalman_filter.h apps/ekf_replay.cpp
+          uvx --from clang-format==23.1.3 clang-format --style=file --dry-run --Werror src/tools.cpp src/tools.h src/dataset_parser.cpp src/dataset_parser.h src/dataset_record.h tests/test_tools.cpp tests/test_dataset_parser.cpp src/FusionEKF.cpp src/kalman_filter.cpp tests/test_FusionEKF.cpp tests/test_kalman_filter.cpp src/kalman_filter.h apps/ekf_replay.cpp src/simulator_session.cpp src/simulator_session.h src/simulator_connection.cpp src/simulator_connection.h apps/ekf_simulator.cpp tests/test_simulator.cpp
   build-test:
     name: Build and test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -76,11 +76,11 @@ jobs:
 
       - name: Configure Ubuntu
         if: runner.os == 'Linux'
-        run: cmake --preset ubuntu-debug -DCMAKE_CXX_COMPILER=g++-11
+        run: cmake --preset ubuntu-debug -DCMAKE_CXX_COMPILER=g++-11 -DBUILD_SIMULATOR=ON
 
       - name: Configure Windows
         if: runner.os == 'Windows'
-        run: cmake --preset windows-debug
+        run: cmake --preset windows-debug -DBUILD_SIMULATOR=ON
 
       - name: Build
         run: cmake --build --preset ${{ matrix.preset }}
@@ -92,4 +92,4 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           clang-tidy-14 --version
-          clang-tidy-14 -p build/ubuntu-debug --warnings-as-errors='*' src/tools.cpp src/dataset_parser.cpp tests/test_tools.cpp tests/test_dataset_parser.cpp src/FusionEKF.cpp src/kalman_filter.cpp tests/test_FusionEKF.cpp tests/test_kalman_filter.cpp apps/ekf_replay.cpp
+          clang-tidy-14 -p build/ubuntu-debug --warnings-as-errors='*' src/tools.cpp src/dataset_parser.cpp tests/test_tools.cpp tests/test_dataset_parser.cpp src/FusionEKF.cpp src/kalman_filter.cpp tests/test_FusionEKF.cpp tests/test_kalman_filter.cpp apps/ekf_replay.cpp src/simulator_session.cpp src/simulator_connection.cpp apps/ekf_simulator.cpp tests/test_simulator.cpp
