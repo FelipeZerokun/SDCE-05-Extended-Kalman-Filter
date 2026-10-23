@@ -4,9 +4,9 @@ A C++17 implementation of Udacity's lidar/radar sensor-fusion challenge, based o
 the original starter structure, with CMake, Catch2, vcpkg, clang-format,
 clang-tidy, and cross-platform CI.
 
-**The core EKF and offline evaluation are implemented.** The supplied dataset
-passes the historical RMSE benchmark on Windows and Ubuntu. An optional simulator
-server is available; the actual Unity run must be verified on Ubuntu.
+**The EKF project is complete, including offline evaluation and simulator integration.**
+The reference dataset passes the RMSE benchmark on Windows and Ubuntu. The
+Udacity Unity simulator also passes on Ubuntu, including a reset and rerun.
 
 For simulator build/run instructions, see [docs/SIMULATOR.md](docs/SIMULATOR.md).
 
@@ -33,6 +33,20 @@ benchmark failure. All 41 tests pass on Windows and Ubuntu. Both platforms
 produce the RMSE values shown above to six decimal places. The updated GitHub
 Actions workflow passes, including formatting, both platform builds/tests,
 and Ubuntu static analysis.
+
+With the simulator enabled, all 46 tests pass on Windows and Ubuntu CI, including
+protocol and loopback WebSocket tests. Manual Ubuntu Dataset 1 runs produced:
+
+| Component | First simulator run | After reset and rerun | Benchmark maximum |
+| --- | ---: | ---: | ---: |
+| X (m) | 0.0973 | 0.0974 | 0.11 |
+| Y (m) | 0.0855 | 0.0855 | 0.11 |
+| VX (m/s) | 0.4513 | 0.4517 | 0.52 |
+| VY (m/s) | 0.4399 | 0.4404 | 0.52 |
+
+Both simulator runs pass every threshold. These are values displayed by Unity;
+they differ slightly from offline replay and from each other. Exact repeatability
+is not established, and the cause of the differences has not been determined.
 
 ## Build and run
 
@@ -127,8 +141,9 @@ L px py timestamp gt_px gt_py gt_vx gt_vy gt_yaw gt_yawrate
 R rho phi rhodot timestamp gt_px gt_py gt_vx gt_vy gt_yaw gt_yawrate
 ~~~
 
-Lidar requires 10 fields and radar 11, including the sensor tag. Abbreviated
-8/9-field rows are unsupported. Timestamps are nonnegative integer microseconds
+The offline parser requires 10 fields for lidar and 11 for radar, including the
+sensor tag. The simulator adapter also accepts abbreviated 8/9-field telemetry
+rows. Timestamps are nonnegative integer microseconds
 fitting in long long. Numeric fields must parse completely as finite doubles;
 scientific notation and whitespace separators are accepted using the classic locale.
 Position/range use metres, velocities metres/second, and angles radians.
@@ -179,7 +194,9 @@ can overflow for extreme values even when a scaled algorithm could compute RMSE.
 | data/, build/, outputs/ | Ignored local/generated material |
 
 The starter's bundled Eigen is not used. The build produces ekf_core, ekf_replay,
-and (with BUILD_TESTING enabled) ekf_tests.
+and (with BUILD_TESTING enabled) ekf_tests. BUILD_SIMULATOR adds
+ekf_simulator_adapter, ekf_simulator, and (with BUILD_TESTING enabled)
+ekf_simulator_tests.
 
 ## Quality checks
 
@@ -224,19 +241,23 @@ workflow, which passes on both platforms. Commits use Conventional Commits.
 
 ## Completion and scope
 
-The core challenge passes the reference dataset's historical accuracy benchmark
-in offline evaluation on Windows and Ubuntu. The 41-test suite and GitHub CI
-checks pass. The offline implementation and verification are complete.
+The original lidar/radar fusion challenge is complete: initialization, prediction,
+lidar correction, radar correction, Jacobian calculation, and RMSE evaluation.
+Offline evaluation on Windows and Ubuntu and two Ubuntu Unity simulator runs
+pass the reference accuracy benchmark. All 46 tests with simulator support
+enabled pass in cross-platform CI; the offline-only configuration passes 41 tests.
 
 The optional simulator target uses Boost.Beast and nlohmann-json through vcpkg.
 Enable it with `cmake --preset ubuntu-local -DBUILD_SIMULATOR=ON`, build and test,
 then run `./build/ubuntu-debug/ekf_simulator` on the same Ubuntu machine as Unity.
 The original `src/main.cpp` remains a protocol reference. The maintained entry
 point is `apps/ekf_simulator.cpp`; no old uWebSockets installation is needed.
-Protocol and loopback WebSocket tests do not replace the final visual Ubuntu run.
+The Ubuntu simulator connection, completed Dataset 1 run, and reset/rerun have
+been validated with the displayed results recorded above.
 
-Reset APIs, plots, sensor-mode experiments, configurable tuning, and expanded
-frameworks are deferred. They are not prerequisites for the offline result.
+Additional core reset APIs, plots, sensor-mode experiments, configurable tuning,
+and expanded frameworks remain outside the completed scope. Simulator session
+reset handling is implemented.
 
 | Milestone | Status |
 | --- | --- |
@@ -246,7 +267,7 @@ frameworks are deferred. They are not prerequisites for the offline result.
 | 4. Dataset parser | Complete |
 | 5. Core EKF | Implemented; 40 component tests passed on both platforms |
 | 6. Offline evaluation | Complete; Windows/Ubuntu benchmark and 41 tests pass; CI green |
-| 7. Simulator integration | Adapter implemented; actual Ubuntu simulator verification pending |
+| 7. Simulator integration | Complete; Ubuntu Dataset 1 and reset/rerun pass; 46 tests and CI green |
 
 ## Attribution
 

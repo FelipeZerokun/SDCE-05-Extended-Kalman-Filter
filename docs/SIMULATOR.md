@@ -6,11 +6,9 @@ on the Ubuntu machine. Windows can build and test the server without running Uni
 
 ## Build on Ubuntu
 
-From the project root, after pulling the simulator branch:
+From the project root, with the simulator integration checked out:
 
 ```bash
-git switch feat/simulator-integration
-git pull --ff-only
 cmake --preset ubuntu-local -DBUILD_SIMULATOR=ON
 cmake --build --preset ubuntu-local
 ctest --preset ubuntu-local
@@ -41,13 +39,15 @@ are unavailable, set `VCPKG_ROOT="$HOME/tools/vcpkg"` and substitute the shared
    px: 0.097226  py: 0.085376  vx: 0.450855  vy: 0.439588
    ```
 
-   These reference values apply to the supplied 500-row Dataset 1. The simulator
-   may display fewer decimal places. The benchmark is [0.11, 0.11, 0.52, 0.52].
+   These offline reference values apply to the supplied 500-row Dataset 1.
+   RMSE appears in the simulator window; the console reports connections and
+   errors. Actual simulator values can differ from offline replay; the verified
+   results are recorded below. The benchmark is [0.11, 0.11, 0.52, 0.52].
 6. Restart Dataset 1 and check that the run begins fresh. Disconnect/reconnect
    also starts a new EKF and RMSE history. Stop the server with Ctrl+C.
 
-The visual run and final displayed results must be checked on Ubuntu; a passing
-headless WebSocket test does not establish Unity end-to-end compatibility.
+Ubuntu Unity validation is complete, including Dataset 1 and a reset/rerun.
+The displayed results from both runs are recorded below.
 
 ## Protocol and lifecycle
 
@@ -101,11 +101,26 @@ these do not require the Unity executable. CI enables the simulator option on
 Windows and Ubuntu. The offline build remains available by configuring with
 `-DBUILD_SIMULATOR=OFF` (the default for a new build directory).
 
-Windows verification: all 46 CTest cases pass with the simulator enabled. An
+All 46 CTest cases pass with the simulator enabled on Windows and Ubuntu CI.
+Formatting and Ubuntu static analysis also pass. An
 independent .NET WebSocket client also sent all 500 reference dataset rows to
 the actual server executable and received the same passing RMSE as offline replay:
-`[0.097226, 0.085376, 0.450855, 0.439588]`. The actual Ubuntu Unity run remains
-pending; it cannot be verified on this Windows machine.
+`[0.097226, 0.085376, 0.450855, 0.439588]`.
+
+The actual Ubuntu Unity simulator connected successfully and completed Dataset 1
+twice, with a reset between runs. The simulator displayed:
+
+| Component | First run | After reset and rerun | Benchmark maximum |
+| --- | ---: | ---: | ---: |
+| X (m) | 0.0973 | 0.0974 | 0.11 |
+| Y (m) | 0.0855 | 0.0855 | 0.11 |
+| VX (m/s) | 0.4513 | 0.4517 | 0.52 |
+| VY (m/s) | 0.4399 | 0.4404 | 0.52 |
+
+Both runs pass every threshold. These manual observations establish successful
+simulator operation before and after reset, not exact numerical repeatability.
+The small differences from offline replay and between runs have not been
+diagnosed; they are not attributed solely to display rounding.
 
 The server uses Boost.Beast instead of the obsolete uWebSockets dependency.
 `src/main.cpp` remains as the original protocol reference; `apps/ekf_simulator.cpp`
