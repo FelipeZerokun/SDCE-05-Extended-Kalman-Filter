@@ -5,6 +5,6 @@ Checks: >
   bugprone-sizeof-expression,
   bugprone-integer-division
 WarningsAsErrors: ''
-HeaderFilterRegex: '(^|/)src/(tools|dataset_parser|dataset_record|measurement_package|FusionEKF|kalman_filter)\.h$'
+HeaderFilterRegex: '(^|/)src/(tools|dataset_parser|dataset_record|measurement_package|FusionEKF|kalman_filter|simulator_session|simulator_connection)\.h$'
 InheritParentConfig: false
 FormatStyle: none

@@ -5,5 +5,14 @@
     "dependencies": [
         "eigen3",
         "catch2"
-    ]
+    ],
+    "features": {
+        "simulator": {
+            "description": "WebSocket and JSON dependencies for the Udacity simulator adapter",
+            "dependencies": [
+                "boost-beast",
+                "nlohmann-json"
+            ]
+        }
+    }
 }

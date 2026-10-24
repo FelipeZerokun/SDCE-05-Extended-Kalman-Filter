@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.22)
 
+option(BUILD_SIMULATOR "Build the Udacity simulator adapter" OFF)
+if(BUILD_SIMULATOR)
+    list(APPEND VCPKG_MANIFEST_FEATURES simulator)
+endif()
+
 project(
     extended_kalman_filter
     VERSION 0.1.0
@@ -35,6 +40,24 @@ target_compile_features(ekf_core PUBLIC cxx_std_17)
 add_executable(ekf_replay apps/ekf_replay.cpp)
 target_link_libraries(ekf_replay PRIVATE ekf_core)
 
+if(BUILD_SIMULATOR)
+    find_package(Boost CONFIG REQUIRED COMPONENTS beast)
+    find_package(nlohmann_json CONFIG REQUIRED)
+    find_package(Threads REQUIRED)
+    add_library(ekf_simulator_adapter STATIC
+        src/simulator_session.cpp
+        src/simulator_connection.cpp
+    )
+    target_link_libraries(ekf_simulator_adapter PUBLIC
+        ekf_core Boost::beast nlohmann_json::nlohmann_json Threads::Threads
+    )
+    if(WIN32)
+        target_compile_definitions(ekf_simulator_adapter PUBLIC _WIN32_WINNT=0x0601)
+    endif()
+    add_executable(ekf_simulator apps/ekf_simulator.cpp)
+    target_link_libraries(ekf_simulator PRIVATE ekf_simulator_adapter)
+endif()
+
 if(BUILD_TESTING)
     find_package(Catch2 3 CONFIG REQUIRED)
 
@@ -53,6 +76,14 @@ if(BUILD_TESTING)
     include(Catch)
     catch_discover_tests(ekf_tests)
 
+    if(BUILD_SIMULATOR)
+        add_executable(ekf_simulator_tests tests/test_simulator.cpp)
+        target_link_libraries(ekf_simulator_tests PRIVATE
+            ekf_simulator_adapter Catch2::Catch2WithMain
+        )
+        catch_discover_tests(ekf_simulator_tests PROPERTIES TIMEOUT 20)
+    endif()
+
     add_test(NAME replay_cli
         COMMAND ${CMAKE_COMMAND}
             "-DREPLAY=$<TARGET_FILE:ekf_replay>"
@@ -63,6 +94,12 @@ endif()
 
 # Apply compiler warnings only to maintained project targets.
 set(ekf_warning_targets ekf_core ekf_replay)
+if(BUILD_SIMULATOR)
+    list(APPEND ekf_warning_targets ekf_simulator_adapter ekf_simulator)
+    if(BUILD_TESTING)
+        list(APPEND ekf_warning_targets ekf_simulator_tests)
+    endif()
+endif()
 
 if(BUILD_TESTING)
     list(APPEND ekf_warning_targets ekf_tests)
