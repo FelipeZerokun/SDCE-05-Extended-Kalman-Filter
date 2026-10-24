@@ -9,6 +9,8 @@ The reference dataset passes the RMSE benchmark on Windows and Ubuntu. The
 Udacity Unity simulator also passes on Ubuntu, including a reset and rerun.
 
 For simulator build/run instructions, see [docs/SIMULATOR.md](docs/SIMULATOR.md).
+For Python animations and documentation figures using actual C++ estimates,
+see [docs/VISUALIZATION.md](docs/VISUALIZATION.md).
 
 ## Results
 
